@@ -213,6 +213,15 @@ body {
   font-size: 11px; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: .04em;
 }
+.foot-meta { display: inline-flex; align-items: center; gap: 8px; }
+.foot-ver {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-text);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 0;
+}
 .card-cta { color: var(--accent-text); font-weight: 600; }
 
 /* ---------- Empty / Footer ---------- */

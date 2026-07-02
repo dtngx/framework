@@ -49,6 +49,7 @@ framework/
 │   └── app.js
 └── tools/               # Ein Ordner pro Tool
     ├── _vorlage/            # Vorlage + Anleitung (wird nicht angezeigt)
+    ├── rampen-check/        # page (v1.0) – Rampen-/Zufahrt-Kollisionscheck
     └── dataholz/            # link – Holzbauteil-Katalog dataholz.eu
 ```
 

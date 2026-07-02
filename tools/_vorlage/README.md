@@ -47,5 +47,7 @@ erscheint im Dashboard. Für Python z. B. `"command": "python3 main.py"`.
 - `url` – Ziel bei `link`
 - `entry` – Start-HTML bei `page` (Standard: `index.html`)
 - `command` – Shell-Kommando bei `script`
+- `version` – Versionsnummer (z. B. `"1.0"`), wird als Badge auf der Kachel gezeigt.
+  Für `link`-Tools nicht nötig – einfach weglassen.
 - `tags` – Liste von Stichwörtern (für die Suche)
 - `author` – optional

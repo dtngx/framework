@@ -1,0 +1,11 @@
+{
+  "name": "Rampen-Check",
+  "description": "Simuliert, ob ein Fahrzeug eine Rampe bzw. Tiefgaragenzufahrt ohne Aufsetzen befährt – Bodenfreiheit, Überhänge und Rampenknicke im Profil geprüft.",
+  "category": "Berechnung",
+  "icon": "🚗",
+  "type": "page",
+  "entry": "index.html",
+  "version": "1.0",
+  "tags": ["Tiefgarage", "Zufahrt", "Bodenfreiheit"],
+  "author": "KEKS"
+}

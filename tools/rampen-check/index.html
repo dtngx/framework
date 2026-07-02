@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rampen-Check · KEKS Werkzeugkasten</title>
+  <style>
+    :root {
+      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
+      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea;
+      --ok:#1f9d5a; --warn:#e08a00; --collision:#e5484d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+    a.back:hover { color: var(--accent); }
+
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 20px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+    .head h1 .accent { color: var(--accent); }
+    .ver {
+      font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+      border-radius: 4px; padding: 1px 6px; font-variant-numeric: tabular-nums;
+    }
+    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .panel.flush { padding: 0; overflow: hidden; }
+
+    .status {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+      border: 1px solid; border-radius: 10px; padding: 12px 16px; font-weight: 600; font-size: 15px;
+    }
+    .status .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+    .status small { font-weight: 400; color: var(--muted); margin-left: auto; text-transform: none; }
+
+    .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+
+    input[type=number] {
+      background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 8px; border-radius: 6px; font-family: inherit; font-size: 13px; width: 100%; outline: none;
+    }
+    input[type=number]:focus { border-color: var(--accent); }
+    select {
+      background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 6px; font-family: inherit; font-size: 13px; outline: none; cursor: pointer; width: 100%;
+    }
+    select:focus { border-color: var(--accent); }
+
+    input[type=range] { -webkit-appearance: none; appearance: none; background: var(--panel2); height: 6px; border-radius: 3px; outline: none; flex: 1; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--border); }
+    input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--bg); }
+
+    .btn {
+      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); padding: 7px 14px; border-radius: 6px; font-size: 12px; transition: all .15s;
+      text-transform: uppercase; letter-spacing: .04em; font-weight: 600;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.wide { width: 100%; }
+    .btn-x { padding: 4px 9px; font-size: 13px; }
+
+    .seg-row { display: flex; gap: 8px; align-items: end; margin-bottom: 8px; }
+    .seg-row .idx { font-size: 11px; color: var(--muted); width: 16px; padding-bottom: 8px; }
+    .seg-row .field { flex: 1; }
+    .seg-row .field .cap { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    .toggles { display: flex; gap: 8px; margin-bottom: 12px; }
+    .meta { font-size: 11px; color: var(--muted); margin-top: 10px; }
+    .seg-list { max-height: 210px; overflow-y: auto; }
+    .grid-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid-fields .cap { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    svg { display: block; width: 100%; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+    <div class="head">
+      <h1>Rampen<span class="accent">-Check</span></h1>
+      <span class="ver">v1.0</span>
+      <span class="sub">Zufahrt · Bodenfreiheit · Rampenknick</span>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div class="panel flush" style="margin-bottom:14px;">
+      <div id="viz"></div>
+    </div>
+
+    <div class="panel" style="margin-bottom:14px; display:flex; align-items:center; gap:14px;">
+      <span class="label" style="white-space:nowrap;">Position</span>
+      <input id="pos" type="range" />
+      <button id="anim" class="btn">▶ Durchfahrt</button>
+    </div>
+
+    <div class="grid2">
+      <div class="panel"><div id="vehiclePanel"></div></div>
+      <div class="panel"><div id="segmentPanel"></div></div>
+    </div>
+  </div>
+
+  <script>
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Daten & Rechenkern (unverändert aus dem Original-Tool übernommen)
+  // ---------------------------------------------------------------------------
+  const PRESET_VEHICLES = [
+    { name: "Porsche 911 (992)", overhangFront: 1016, overhangRear: 1054, wheelbase: 2450, clearance: 85, approachAngle: 9.0, departureAngle: 14.6 },
+    { name: "Porsche 911 (992) PASM -20", overhangFront: 1016, overhangRear: 1054, wheelbase: 2450, clearance: 75, approachAngle: 8.6, departureAngle: 13.9 },
+    { name: "Corvette C8", overhangFront: 890, overhangRear: 1100, wheelbase: 2722, clearance: 133, approachAngle: 12.5, departureAngle: 18.0 },
+    { name: "Ferrari 488", overhangFront: 1050, overhangRear: 1000, wheelbase: 2650, clearance: 100, approachAngle: 8.5, departureAngle: 14.0 },
+    { name: "Lamborghini Huracán", overhangFront: 950, overhangRear: 1020, wheelbase: 2620, clearance: 116, approachAngle: 10.5, departureAngle: 15.0 },
+    { name: "Mercedes AMG GT", overhangFront: 930, overhangRear: 1080, wheelbase: 2630, clearance: 108, approachAngle: 11.0, departureAngle: 14.5 },
+    { name: "BMW M4 (G82)", overhangFront: 900, overhangRear: 1050, wheelbase: 2857, clearance: 120, approachAngle: 12.0, departureAngle: 15.0 },
+    { name: "VW Golf 8 GTI", overhangFront: 840, overhangRear: 870, wheelbase: 2620, clearance: 139, approachAngle: 14.0, departureAngle: 16.0 },
+  ];
+
+  const DEFAULT_SEGMENTS = [
+    { length: 2000, slope: 0 },
+    { length: 1000, slope: 2.5 },
+    { length: 4000, slope: 5.0 },
+    { length: 1000, slope: 2.5 },
+    { length: 2000, slope: 0 },
+  ];
+
+  function buildProfile(segments) {
+    const points = [{ x: 0, y: 0 }];
+    let cx = 0, cy = 0;
+    for (const seg of segments) {
+      cx += seg.length;
+      cy -= (seg.slope / 100) * seg.length;
+      points.push({ x: cx, y: cy });
+    }
+    return points;
+  }
+
+  function getGroundY(profile, x) {
+    if (x <= profile[0].x) return profile[0].y;
+    if (x >= profile[profile.length - 1].x) return profile[profile.length - 1].y;
+    for (let i = 0; i < profile.length - 1; i++) {
+      if (x >= profile[i].x && x <= profile[i + 1].x) {
+        const t = (x - profile[i].x) / (profile[i + 1].x - profile[i].x);
+        return profile[i].y + t * (profile[i + 1].y - profile[i].y);
+      }
+    }
+    return 0;
+  }
+
+  function checkVehicle(vehicle, profile, posX) {
+    const { overhangFront, overhangRear, wheelbase, clearance } = vehicle;
+    const totalLength = overhangFront + wheelbase + overhangRear;
+
+    const rearAxleX = posX;
+    const frontAxleX = posX + wheelbase;
+
+    const rearAxleGround = getGroundY(profile, rearAxleX);
+    const frontAxleGround = getGroundY(profile, frontAxleX);
+
+    const axleAngle = Math.atan2(frontAxleGround - rearAxleGround, wheelbase);
+
+    const rearAxleY = rearAxleGround;
+    const frontAxleY = frontAxleGround;
+    const cosA = Math.cos(axleAngle);
+    const sinA = Math.sin(axleAngle);
+
+    const checks = [];
+    const numChecks = 40;
+
+    let minGap = Infinity;
+    let minGapX = 0;
+
+    for (let i = 0; i <= numChecks; i++) {
+      const t = i / numChecks;
+      const localX = -overhangRear + t * totalLength;
+
+      const worldX = rearAxleX + localX * cosA;
+      const worldY = rearAxleY + localX * sinA + clearance;
+
+      const groundY = getGroundY(profile, worldX);
+      const gap = worldY - groundY;
+
+      checks.push({ x: worldX, carY: worldY, groundY, gap });
+
+      if (gap < minGap) {
+        minGap = gap;
+        minGapX = worldX;
+      }
+    }
+
+    const frontTipWorldX = rearAxleX + (wheelbase + overhangFront) * cosA;
+    const frontTipWorldY = rearAxleY + (wheelbase + overhangFront) * sinA + clearance;
+    const rearTipWorldX = rearAxleX + (-overhangRear) * cosA;
+    const rearTipWorldY = rearAxleY + (-overhangRear) * sinA + clearance;
+
+    const bodyHeight = 500;
+    const perpX = -sinA * bodyHeight;
+    const perpY = cosA * bodyHeight;
+
+    const carBody = {
+      rearBottom: { x: rearTipWorldX, y: rearTipWorldY },
+      rearTop: { x: rearTipWorldX + perpX, y: rearTipWorldY + perpY },
+      frontBottom: { x: frontTipWorldX, y: frontTipWorldY },
+      frontTop: { x: frontTipWorldX + perpX, y: frontTipWorldY + perpY },
+      rearAxle: { x: rearAxleX, y: rearAxleY },
+      frontAxle: { x: frontAxleX, y: frontAxleY },
+    };
+
+    return { minGap, minGapX, checks, carBody, axleAngle };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Zustand
+  // ---------------------------------------------------------------------------
+  let segments = DEFAULT_SEGMENTS.map(s => ({ ...s }));
+  let presetVehicle = { ...PRESET_VEHICLES[0] };
+  let customVehicle = { name: "Eigenes Fahrzeug", overhangFront: 1000, overhangRear: 1000, wheelbase: 2500, clearance: 100, approachAngle: 10, departureAngle: 14 };
+  let customMode = false;
+  let posX = 1000;
+  let animating = false;
+  let animRaf = null;
+
+  const activeVehicle = () => (customMode ? customVehicle : presetVehicle);
+
+  const els = {
+    viz: document.getElementById('viz'),
+    status: document.getElementById('status'),
+    pos: document.getElementById('pos'),
+    anim: document.getElementById('anim'),
+    vehiclePanel: document.getElementById('vehiclePanel'),
+    segmentPanel: document.getElementById('segmentPanel'),
+  };
+
+  // ---------------------------------------------------------------------------
+  // Farb-Palette abhängig vom Theme
+  // ---------------------------------------------------------------------------
+  function palette() {
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    return {
+      accent: '#ff4f00', ok: '#1f9d5a', warn: '#e08a00', collision: '#e5484d',
+      groundTop: dark ? '#374151' : '#e4e4e0',
+      groundBot: dark ? '#1f2937' : '#f1f1ef',
+      profile: dark ? '#6b7280' : '#8a8a86',
+      wheelFill: dark ? '#0e0e0f' : '#ffffff',
+      wheelStroke: dark ? '#6b7280' : '#9a9a97',
+      textMuted: dark ? '#9ca3af' : '#8a8a86',
+      textFaint: dark ? '#6b7280' : '#a9a9a5',
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Zeichnen
+  // ---------------------------------------------------------------------------
+  const pad = { top: 60, bottom: 70, left: 70, right: 70 };
+  const W = 900, H = 460;
+
+  function renderViz() {
+    const c = palette();
+    const av = activeVehicle();
+    const profile = buildProfile(segments);
+    const totalLen = profile[profile.length - 1].x;
+    const result = checkVehicle(av, profile, posX);
+
+    const drawW = W - pad.left - pad.right;
+    const drawH = H - pad.top - pad.bottom;
+
+    const allY = profile.map(p => p.y);
+    const cb = result.carBody;
+    allY.push(cb.rearTop.y, cb.frontTop.y, cb.rearBottom.y, cb.frontBottom.y);
+    const minY = Math.min(...allY) - 100;
+    const maxY = Math.max(...allY) + 200;
+
+    const scaleY = drawH / Math.max(maxY - minY, 1);
+    const toSvgX = (wx) => pad.left + (wx / totalLen) * drawW;
+    const toSvgY = (wy) => pad.top + drawH - (wy - minY) * scaleY;
+
+    const profilePath = profile.map((p, i) => `${i === 0 ? "M" : "L"}${toSvgX(p.x).toFixed(1)},${toSvgY(p.y).toFixed(1)}`).join(" ");
+    const fillPath = profilePath + ` L${toSvgX(totalLen).toFixed(1)},${toSvgY(minY - 50).toFixed(1)} L${toSvgX(0).toFixed(1)},${toSvgY(minY - 50).toFixed(1)} Z`;
+
+    const collision = result.minGap < 0;
+    const warning = result.minGap >= 0 && result.minGap < 15;
+    const carColor = collision ? c.collision : warning ? c.warn : c.accent;
+    const wheelR = 13;
+
+    // Segmentbeschriftungen
+    let segLabels = '';
+    let sx = 0;
+    segments.forEach((seg, i) => {
+      const midX = sx + seg.length / 2;
+      const midY = getGroundY(profile, midX);
+      segLabels += `<text x="${toSvgX(midX).toFixed(1)}" y="${(toSvgY(midY) - 14).toFixed(1)}" text-anchor="middle" fill="${c.textMuted}" font-size="10">${seg.slope}% · ${(seg.length / 1000).toFixed(1)}m</text>`;
+      sx += seg.length;
+    });
+
+    const carPts = `${toSvgX(cb.rearBottom.x).toFixed(1)},${toSvgY(cb.rearBottom.y).toFixed(1)} ${toSvgX(cb.frontBottom.x).toFixed(1)},${toSvgY(cb.frontBottom.y).toFixed(1)} ${toSvgX(cb.frontTop.x).toFixed(1)},${toSvgY(cb.frontTop.y).toFixed(1)} ${toSvgX(cb.rearTop.x).toFixed(1)},${toSvgY(cb.rearTop.y).toFixed(1)}`;
+
+    let gapIndicator = '';
+    if (result.minGapX > 0 && result.minGapX < totalLen) {
+      const gx = toSvgX(result.minGapX);
+      const gy1 = toSvgY(getGroundY(profile, result.minGapX));
+      const gy2 = toSvgY(getGroundY(profile, result.minGapX) + result.minGap + av.clearance) + 18;
+      gapIndicator = `<line x1="${gx.toFixed(1)}" y1="${gy1.toFixed(1)}" x2="${gx.toFixed(1)}" y2="${gy2.toFixed(1)}" stroke="${carColor}" stroke-width="1" stroke-dasharray="3,2" opacity="0.7" />`;
+    }
+
+    els.viz.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="${c.groundTop}" />
+            <stop offset="100%" stop-color="${c.groundBot}" />
+          </linearGradient>
+        </defs>
+        <path d="${fillPath}" fill="url(#ground)" />
+        <path d="${profilePath}" fill="none" stroke="${c.profile}" stroke-width="2.5" />
+        ${segLabels}
+        <polygon points="${carPts}" fill="${carColor}" fill-opacity="0.82" stroke="${carColor}" stroke-width="1.5" />
+        <line x1="${toSvgX(cb.rearBottom.x).toFixed(1)}" y1="${toSvgY(cb.rearBottom.y).toFixed(1)}" x2="${toSvgX(cb.frontBottom.x).toFixed(1)}" y2="${toSvgY(cb.frontBottom.y).toFixed(1)}" stroke="#ffffff" stroke-opacity="0.85" stroke-width="2" stroke-dasharray="4,3" />
+        <circle cx="${toSvgX(cb.rearAxle.x).toFixed(1)}" cy="${toSvgY(cb.rearAxle.y).toFixed(1)}" r="${wheelR}" fill="${c.wheelFill}" stroke="${c.wheelStroke}" stroke-width="2" />
+        <circle cx="${toSvgX(cb.frontAxle.x).toFixed(1)}" cy="${toSvgY(cb.frontAxle.y).toFixed(1)}" r="${wheelR}" fill="${c.wheelFill}" stroke="${c.wheelStroke}" stroke-width="2" />
+        <circle cx="${toSvgX(cb.rearAxle.x).toFixed(1)}" cy="${toSvgY(cb.rearAxle.y).toFixed(1)}" r="4" fill="${c.wheelStroke}" />
+        <circle cx="${toSvgX(cb.frontAxle.x).toFixed(1)}" cy="${toSvgY(cb.frontAxle.y).toFixed(1)}" r="4" fill="${c.wheelStroke}" />
+        ${gapIndicator}
+        <text x="${pad.left}" y="26" fill="${c.textMuted}" font-size="11">${av.name}</text>
+        <text x="${pad.left}" y="42" fill="${c.textFaint}" font-size="10">Überhang v/h: ${av.overhangFront}/${av.overhangRear}mm · Radstand: ${av.wheelbase}mm · Bodenfreiheit: ${av.clearance}mm</text>
+      </svg>`;
+
+    // Statuszeile
+    const gap = result.minGap;
+    const state = collision ? 'collision' : warning ? 'warn' : 'ok';
+    const col = collision ? c.collision : warning ? c.warn : c.ok;
+    const label = collision ? `KOLLISION – Unterboden setzt auf (${gap.toFixed(0)} mm)` :
+                  warning ? `KNAPP – nur ${gap.toFixed(0)} mm Restabstand` :
+                  `OK – ${gap.toFixed(0)} mm Restabstand`;
+    els.status.style.color = col;
+    els.status.style.borderColor = col;
+    els.status.style.background = col + '14';
+    els.status.dataset.state = state;
+    els.status.innerHTML = `<span class="dot"></span><span>${label}</span><small>Gesamtlänge ${(totalLen / 1000).toFixed(1)} m · Höhendiff ${Math.abs(profile[profile.length - 1].y).toFixed(0)} mm</small>`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bedienfelder
+  // ---------------------------------------------------------------------------
+  function renderVehiclePanel() {
+    const optionEls = PRESET_VEHICLES.map(v => `<option value="${v.name}"${v.name === presetVehicle.name ? ' selected' : ''}>${v.name}</option>`).join('');
+    const customFields = [
+      ["overhangFront", "Überhang vorn (mm)"],
+      ["overhangRear", "Überhang hinten (mm)"],
+      ["wheelbase", "Radstand (mm)"],
+      ["clearance", "Bodenfreiheit (mm)"],
+    ].map(([key, cap]) => `<div><div class="cap">${cap}</div><input type="number" data-cv="${key}" value="${customVehicle[key]}" /></div>`).join('');
+
+    els.vehiclePanel.innerHTML = `
+      <div class="label" style="margin-bottom:12px;">Fahrzeug</div>
+      <div class="toggles">
+        <button class="btn ${!customMode ? 'active' : ''}" data-mode="preset">Vorlagen</button>
+        <button class="btn ${customMode ? 'active' : ''}" data-mode="custom">Eigene Werte</button>
+      </div>
+      ${customMode
+        ? `<div class="grid-fields">${customFields}</div>`
+        : `<select id="vehSel">${optionEls}</select>`}
+    `;
+
+    els.vehiclePanel.querySelector('[data-mode="preset"]').onclick = () => { customMode = false; onVehicleChange(); };
+    els.vehiclePanel.querySelector('[data-mode="custom"]').onclick = () => { customMode = true; onVehicleChange(); };
+    const sel = els.vehiclePanel.querySelector('#vehSel');
+    if (sel) sel.onchange = (e) => { presetVehicle = { ...PRESET_VEHICLES.find(v => v.name === e.target.value) }; onVehicleChange(); };
+    els.vehiclePanel.querySelectorAll('[data-cv]').forEach(inp => {
+      inp.oninput = (e) => { customVehicle[e.target.dataset.cv] = parseInt(e.target.value) || 0; onVehicleChange(false); };
+    });
+  }
+
+  function renderSegments() {
+    const rows = segments.map((seg, i) => `
+      <div class="seg-row">
+        <span class="idx">${i + 1}</span>
+        <div class="field"><div class="cap">Länge mm</div><input type="number" data-seg="${i}" data-field="length" value="${seg.length}" /></div>
+        <div class="field"><div class="cap">Gefälle %</div><input type="number" step="0.5" data-seg="${i}" data-field="slope" value="${seg.slope}" /></div>
+        ${segments.length > 1 ? `<button class="btn btn-x" data-remove="${i}">×</button>` : ''}
+      </div>`).join('');
+
+    els.segmentPanel.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div class="label">Rampenprofil</div>
+        <button class="btn" id="addSeg">+ Segment</button>
+      </div>
+      <div class="seg-list">${rows}</div>
+    `;
+
+    els.segmentPanel.querySelector('#addSeg').onclick = () => { segments.push({ length: 1000, slope: 0 }); renderSegments(); updateSliderRange(); renderViz(); };
+    els.segmentPanel.querySelectorAll('[data-remove]').forEach(btn => {
+      btn.onclick = () => { const i = +btn.dataset.remove; if (segments.length > 1) { segments.splice(i, 1); renderSegments(); updateSliderRange(); renderViz(); } };
+    });
+    els.segmentPanel.querySelectorAll('[data-seg]').forEach(inp => {
+      inp.oninput = (e) => {
+        const i = +e.target.dataset.seg, field = e.target.dataset.field;
+        segments[i] = { ...segments[i], [field]: parseFloat(e.target.value) || 0 };
+        updateSliderRange();
+        renderViz();
+      };
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Position / Slider / Animation
+  // ---------------------------------------------------------------------------
+  function updateSliderRange() {
+    const av = activeVehicle();
+    const profile = buildProfile(segments);
+    const totalLen = profile[profile.length - 1].x;
+    els.pos.min = -av.overhangRear - 500;
+    els.pos.max = totalLen + 500;
+    els.pos.value = posX;
+  }
+
+  function onVehicleChange(rerenderPanel = true) {
+    if (rerenderPanel) renderVehiclePanel();
+    updateSliderRange();
+    renderViz();
+  }
+
+  els.pos.addEventListener('input', (e) => {
+    if (animating) return;
+    posX = parseInt(e.target.value);
+    renderViz();
+  });
+
+  els.anim.addEventListener('click', () => {
+    animating = !animating;
+    els.anim.textContent = animating ? '■ Stop' : '▶ Durchfahrt';
+    els.anim.classList.toggle('active', animating);
+    if (animating) startAnim(); else stopAnim();
+  });
+
+  function startAnim() {
+    const av = activeVehicle();
+    const profile = buildProfile(segments);
+    const totalLen = profile[profile.length - 1].x;
+    const startX = -av.overhangRear - 500;
+    const endX = totalLen + 500;
+    const speed = 30;
+    posX = startX;
+    const step = () => {
+      posX += speed;
+      if (posX > endX) posX = startX;
+      els.pos.value = posX;
+      renderViz();
+      animRaf = requestAnimationFrame(step);
+    };
+    animRaf = requestAnimationFrame(step);
+  }
+  function stopAnim() { if (animRaf) cancelAnimationFrame(animRaf); animRaf = null; }
+
+  // Bei Theme-Wechsel neu zeichnen
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderViz);
+
+  // ---------------------------------------------------------------------------
+  // Start
+  // ---------------------------------------------------------------------------
+  renderVehiclePanel();
+  renderSegments();
+  updateSliderRange();
+  renderViz();
+  </script>
+</body>
+</html>

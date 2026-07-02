@@ -123,13 +123,20 @@ function card(tool) {
     <p></p>
     <div class="card-tags"></div>
     <div class="card-foot">
-      <span class="foot-cat"></span>
+      <span class="foot-meta">
+        <span class="foot-cat"></span>
+        <span class="foot-ver"></span>
+      </span>
       <span class="card-cta">${cta}</span>
     </div>
   `;
   el.querySelector('h3').textContent = tool.name;
   el.querySelector('p').textContent = tool.description;
   el.querySelector('.foot-cat').textContent = tool.category;
+
+  const verEl = el.querySelector('.foot-ver');
+  if (tool.version) verEl.textContent = 'v' + tool.version;
+  else verEl.remove();
 
   const tagsEl = el.querySelector('.card-tags');
   for (const tag of (tool.tags || []).slice(0, 4)) {

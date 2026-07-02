@@ -78,6 +78,7 @@ function discoverTools() {
         category: meta.category || 'Allgemein',
         icon: meta.icon || '🧩',
         type: meta.type || 'page', // link | page | script
+        version: meta.version || null,
         url: meta.url || null,
         entry: meta.entry || 'index.html',
         tags: Array.isArray(meta.tags) ? meta.tags : [],
