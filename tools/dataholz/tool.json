@@ -1,0 +1,10 @@
+{
+  "name": "dataholz.eu",
+  "description": "Katalog bauaufsichtlich geprüfter Holzbauteile und Anschlüsse – Aufbauten, Kennwerte (Schall, Brand, Wärme) und Nachweise.",
+  "category": "Referenz",
+  "icon": "🪵",
+  "type": "link",
+  "url": "https://www.dataholz.eu/",
+  "tags": ["Holzbau", "Bauteilkatalog", "Nachweise"],
+  "author": "Toolbox"
+}
