@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+.env
+# Vom Projektstruktur-Generator erzeugte Testordner
+Neues-Projekt_*/

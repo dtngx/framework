@@ -1,0 +1,12 @@
+{
+  "name": "Name des Tools",
+  "description": "Kurze Beschreibung, was das Tool macht. Erscheint auf der Kachel.",
+  "category": "Kategorie",
+  "icon": "🧩",
+  "type": "page",
+  "entry": "index.html",
+  "url": "https://…",
+  "command": "python3 main.py",
+  "tags": ["Stichwort1", "Stichwort2"],
+  "author": "Dein Name"
+}

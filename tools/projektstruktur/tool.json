@@ -1,0 +1,10 @@
+{
+  "name": "Projektstruktur-Generator",
+  "description": "Legt eine standardisierte Projektordner-Struktur (Leistungsphasen HOAI, Pläne, Schriftverkehr) an – ausführbar direkt aus dem Dashboard.",
+  "category": "Projektorganisation",
+  "icon": "🗂️",
+  "type": "script",
+  "command": "node generate.js",
+  "tags": ["HOAI", "Ordner", "Projektstart"],
+  "author": "Toolbox"
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architektur-Toolbox</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🏛️</span>
+      <div>
+        <h1>Architektur-Toolbox</h1>
+        <p class="brand-sub">Zentraler Startpunkt für unsere Tools &amp; Helfer</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="search">
+        <span class="search-icon">⌕</span>
+        <input id="search" type="search" placeholder="Tool suchen…" autocomplete="off" />
+      </div>
+      <button id="theme-toggle" class="icon-btn" title="Hell/Dunkel umschalten" aria-label="Theme umschalten">◐</button>
+    </div>
+  </header>
+
+  <nav id="filters" class="filters" aria-label="Kategorien"></nav>
+
+  <main id="content" class="content">
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty" hidden>
+      <p>Keine Tools gefunden.</p>
+      <p class="empty-hint">Neues Tool anlegen: Ordner unter <code>tools/</code> mit einer <code>tool.json</code>.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span id="tool-count"></span>
+    <span class="footer-hint">Neues Tool? Ordner in <code>tools/</code> + <code>tool.json</code> anlegen – erscheint automatisch.</span>
+  </footer>
+
+  <!-- Modal für Script-Ausgabe -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h2 id="modal-title">Ausgabe</h2>
+        <button id="modal-close" class="icon-btn" aria-label="Schließen">✕</button>
+      </div>
+      <div id="modal-status" class="modal-status"></div>
+      <pre id="modal-output" class="modal-output"></pre>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
