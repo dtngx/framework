@@ -51,7 +51,7 @@ framework/
     ├── _vorlage/            # Vorlage + Anleitung (wird nicht angezeigt)
     ├── rampen-check/        # page (v1.0) – Rampen-/Zufahrt-Kollisionscheck
     ├── ifc-renamer/         # page (v1.0) – IFC Projekt/Site/Building umbenennen
-    ├── regenwasser-rechner/ # page (v1.0) – Regenwassermengen je Teilfläche
+    ├── regenwasser-rechner/ # page (v1.1) – Regenwasserabfluss nach DIN 1986-100
     ├── u-wert-rechner/      # link – U-Wert-Rechner (ubakus.de)
     └── dataholz/            # link – Holzbauteil-Katalog dataholz.eu
 ```

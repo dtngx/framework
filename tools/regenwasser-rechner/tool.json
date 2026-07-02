@@ -1,11 +1,11 @@
 {
   "name": "Regenwasser-Rechner",
-  "description": "Regenwassermengen über mehrere Teilflächen ermitteln – Regenmenge, Fläche und Neigung je Teilfläche, mit Summe und CSV-Export für Excel.",
+  "description": "Regenwasserabfluss je Teilfläche nach DIN 1986-100: Regenspende r, wirksame Dachfläche, Neigung und Abflussbeiwert C (mit Vorauswahl). Summe und CSV-Export für Excel.",
   "category": "Berechnung",
   "icon": "🌧️",
   "type": "page",
   "entry": "index.html",
-  "version": "1.0",
-  "tags": ["Regenwasser", "Entwässerung", "Dachfläche"],
+  "version": "1.1",
+  "tags": ["Regenwasser", "Entwässerung", "Flachdach", "DIN 1986-100"],
   "author": "KEKS ARCHITEKTEN"
 }
