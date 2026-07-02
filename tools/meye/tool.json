@@ -1,0 +1,10 @@
+{
+  "name": "Meye – Baumkatalog",
+  "description": "Fotografische Baumdatenbank – Bäume nach Art und Jahreszeit filtern und im Bild vergleichen. Hilfe bei Baum- und Pflanzenauswahl für Freiraum- und Außenanlagenplanung.",
+  "category": "Referenz",
+  "icon": "🌳",
+  "type": "link",
+  "url": "https://meye.dk",
+  "tags": ["Bäume", "Bepflanzung", "Freiraumplanung", "Pflanzenauswahl"],
+  "author": "meye.dk"
+}
