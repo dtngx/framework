@@ -1,0 +1,11 @@
+{
+  "name": "Schleppkurve",
+  "description": "Visuelle Schleppkurve für zweiachsige Fahrzeuge: Fahrzeug interaktiv fahren, überstrichene Fläche, Rad- und Kantenspuren. Eigene Fahrzeuge anlegbar. (Aufbau: v1 Kern; Begrenzungen, DXF/Bild-Import und DXF/PDF-Export folgen.)",
+  "category": "Verkehr",
+  "icon": "🚚",
+  "type": "page",
+  "entry": "index.html",
+  "version": "0.1",
+  "tags": ["Schleppkurve", "Befahrbarkeit", "RBSV", "Zufahrt"],
+  "author": "KEKS ARCHITEKTEN"
+}

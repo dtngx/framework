@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Schleppkurve · KEKS Werkzeugkasten</title>
+  <style>
+    :root {
+      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
+      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea;
+      --ok:#1f9d5a; --err:#e5484d;
+      --grid:#ececea; --grid-strong:#d9d9d6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+        --grid:#1f1f22; --grid-strong:#2c2c30;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+    a.back:hover { color: var(--accent); }
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 6px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+    .head h1 .accent { color: var(--accent); }
+    .ver { font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 4px; padding: 1px 6px; }
+    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+
+    .layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; margin-top: 14px; }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+    .stage {
+      position: relative; width: 100%; aspect-ratio: 1000 / 640;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    }
+    .stage canvas, .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .stage svg { touch-action: none; }
+    .readout {
+      position: absolute; left: 10px; top: 10px; font-size: 11.5px; color: var(--muted);
+      background: color-mix(in srgb, var(--panel) 80%, transparent); border: 1px solid var(--border);
+      border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; pointer-events: none;
+    }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .side { display: flex; flex-direction: column; gap: 14px; }
+    .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; font-weight: 600; }
+
+    label.f { display: block; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+    label.f input, label.f select { margin-top: 3px; }
+    input, select {
+      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 7px 8px; border-radius: 6px; font-family: inherit; font-size: 13px; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    input[type=range] { -webkit-appearance: none; appearance: none; background: var(--panel2); height: 6px; border-radius: 3px; padding: 0; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--panel); box-shadow: 0 0 0 1px var(--border); }
+    input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--panel); }
+
+    .btn {
+      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      transition: all .12s; user-select: none;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row .btn { flex: 1; text-align: center; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+    .norms { font-size: 11.5px; color: var(--muted); margin-top: 16px; }
+    .norms strong { color: var(--text); }
+    .badge { display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius:4px; padding:1px 6px; margin-left:6px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+    <div class="head">
+      <h1>Schlepp<span class="accent">kurve</span></h1>
+      <span class="ver">v0.1</span>
+      <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
+    </div>
+    <p class="hint" style="margin:0 0 4px;">
+      Kern-Version <span class="badge">Work in Progress</span> – Fahren, Spuren &amp; überstrichene Fläche.
+      Begrenzungen, DXF-/Bild-Import und DXF-/PDF-Export folgen als nächste Schritte.
+    </p>
+
+    <div class="layout">
+      <div class="stage" id="stage">
+        <canvas id="ghost" width="1000" height="640"></canvas>
+        <svg id="svg" viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="readout" id="readout"></div>
+      </div>
+
+      <div class="side">
+        <div class="panel">
+          <h2>Fahrzeug</h2>
+          <label class="f">Vorlage
+            <select id="preset"></select>
+          </label>
+          <div class="grid2">
+            <label class="f">Länge (m)<input type="number" step="0.01" id="v_length"></label>
+            <label class="f">Breite (m)<input type="number" step="0.01" id="v_width"></label>
+            <label class="f">Radstand (m)<input type="number" step="0.01" id="v_wheelbase"></label>
+            <label class="f">Spurweite (m)<input type="number" step="0.01" id="v_track"></label>
+            <label class="f">Überhang vorn (m)<input type="number" step="0.01" id="v_of"></label>
+            <label class="f">Überhang hinten (m)<input type="number" step="0.01" id="v_or"></label>
+            <label class="f">Wendekreis R außen (m)<input type="number" step="0.01" id="v_wk"></label>
+          </div>
+          <p class="hint">Werte editierbar = eigenes Fahrzeug. Benannt speichern kommt im nächsten Schritt.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Fahren</h2>
+          <label class="f">Lenkeinschlag: <span id="steerLbl">0°</span>
+            <input type="range" id="steer" min="-35" max="35" step="0.5" value="0">
+          </label>
+          <label class="f">Geschwindigkeit: <span id="speedLbl">3,0 m/s</span>
+            <input type="range" id="speed" min="0.5" max="8" step="0.5" value="3">
+          </label>
+          <div class="row" style="margin-bottom:8px;">
+            <button class="btn" id="back">◀ Rückwärts</button>
+            <button class="btn" id="fwd">Vorwärts ▶</button>
+          </div>
+          <div class="row">
+            <button class="btn" id="reset">Zurücksetzen</button>
+            <button class="btn" id="fit">Einpassen</button>
+            <button class="btn" id="center">Fahrzeug zentrieren</button>
+          </div>
+          <p class="hint">Vor/Zurück gedrückt halten. Ansicht: ziehen = verschieben, Mausrad = zoomen.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="norms">
+      <strong>Grundlage:</strong> RBSV 2020 (FGSV, „Richtlinien für Bemessungsfahrzeuge und Schleppkurven").
+      Die Default-Maße sind repräsentativ und editierbar – <strong>keine zertifizierte RBSV-Schablone</strong>,
+      Angaben ohne Gewähr, ersetzt keine geprüfte Befahrbarkeitsuntersuchung.
+    </div>
+  </div>
+
+  <script>
+  'use strict';
+
+  // ===========================================================================
+  // Fahrzeug-Vorlagen (repräsentativ, editierbar)
+  // ===========================================================================
+  const PRESETS = [
+    { name: 'Pkw (Standard, RBSV-nah)', length: 4.70, width: 1.85, wheelbase: 2.70, of: 0.90, or: 1.10, track: 1.60, wk: 5.85 },
+    { name: 'Transporter (mittel)',     length: 5.90, width: 2.00, wheelbase: 3.665, of: 0.90, or: 1.335, track: 1.75, wk: 6.60 },
+  ];
+  let veh = { ...PRESETS[0] };
+
+  // Max. Lenkeinschlag aus Wendekreis (Spur außen, vorderes kurvenäußeres Rad)
+  function deltaMax(v) {
+    const inner = v.wk * v.wk - v.wheelbase * v.wheelbase;
+    if (inner <= 0) return 40 * Math.PI / 180;
+    const Rr = Math.sqrt(inner) - v.track / 2; // Radius Hinterachsmitte bei Volleinschlag
+    if (Rr <= 0.1) return 40 * Math.PI / 180;
+    return Math.atan(v.wheelbase / Rr);
+  }
+
+  // ===========================================================================
+  // Kinematik (Einspurmodell, Referenz = Hinterachsmitte)
+  // ===========================================================================
+  let state = { x: 0, y: 0, theta: 0 }; // Weltmeter, theta in rad
+  let steer = 0; // rad
+
+  function stepModel(ds) {
+    state.theta += (ds / veh.wheelbase) * Math.tan(steer);
+    state.x += ds * Math.cos(state.theta);
+    state.y += ds * Math.sin(state.theta);
+  }
+
+  // Geometrie (Weltkoordinaten) aus Zustand
+  function geometry(st = state, v = veh) {
+    const c = Math.cos(st.theta), s = Math.sin(st.theta);
+    const u = { x: c, y: s };          // vorwärts
+    const n = { x: -s, y: c };         // links
+    const C = { x: st.x, y: st.y };    // Hinterachsmitte
+    const add = (p, d, k) => ({ x: p.x + d.x * k, y: p.y + d.y * k });
+    const frontAxle = add(C, u, v.wheelbase);
+    const frontBmp = add(C, u, v.wheelbase + v.of);
+    const rearBmp = add(C, u, -v.or);
+    const hw = v.width / 2, ht = v.track / 2;
+    return {
+      corners: {
+        fl: add(frontBmp, n, hw), fr: add(frontBmp, n, -hw),
+        rl: add(rearBmp, n, hw),  rr: add(rearBmp, n, -hw),
+      },
+      wheels: {
+        fl: add(frontAxle, n, ht), fr: add(frontAxle, n, -ht),
+        rl: add(C, n, ht),         rr: add(C, n, -ht),
+      },
+      frontAxle, C, u, n,
+    };
+  }
+
+  // ===========================================================================
+  // Ansicht (Welt <-> Bildschirm in viewBox-Einheiten 1000x640)
+  // ===========================================================================
+  const VBW = 1000, VBH = 640;
+  const view = { scale: 30, panX: 300, panY: 380 }; // px/m, Ursprungsoffset
+  const w2s = (p) => ({ x: view.panX + p.x * view.scale, y: view.panY - p.y * view.scale });
+  const s2w = (p) => ({ x: (p.x - view.panX) / view.scale, y: -(p.y - view.panY) / view.scale });
+
+  const svg = document.getElementById('svg');
+  const ghost = document.getElementById('ghost');
+  const gctx = ghost.getContext('2d');
+  const readout = document.getElementById('readout');
+
+  // Aufgezeichnete Spuren
+  const traceKeys = ['fl', 'fr', 'rl', 'rr'];
+  let wheelTrace = { fl: [], fr: [], rl: [], rr: [] };
+  let cornerTrace = { fl: [], fr: [], rl: [], rr: [] };
+  let sweptQuads = []; // {fl,fr,rr,rl} in Weltkoord. für Ghost-Repaint
+  let lastRecord = null;
+
+  function resetTraces() {
+    wheelTrace = { fl: [], fr: [], rl: [], rr: [] };
+    cornerTrace = { fl: [], fr: [], rl: [], rr: [] };
+    sweptQuads = [];
+    lastRecord = null;
+    clearGhost();
+  }
+
+  function record() {
+    const g = geometry();
+    traceKeys.forEach(k => { wheelTrace[k].push(g.wheels[k]); cornerTrace[k].push(g.corners[k]); });
+    sweptQuads.push({ fl: g.corners.fl, fr: g.corners.fr, rr: g.corners.rr, rl: g.corners.rl });
+    paintQuad(g.corners);
+    lastRecord = { x: state.x, y: state.y };
+  }
+
+  // ---------- Ghost-Canvas (überstrichene Fläche) ----------
+  function accentRGBA(a) {
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    return `rgba(255,79,0,${a})`; // Orange, dark/light identisch
+  }
+  function clearGhost() { gctx.clearRect(0, 0, VBW, VBH); }
+  function paintQuad(cs) {
+    const p = ['fl', 'fr', 'rr', 'rl'].map(k => w2s(cs[k]));
+    gctx.beginPath();
+    gctx.moveTo(p[0].x, p[0].y);
+    for (let i = 1; i < 4; i++) gctx.lineTo(p[i].x, p[i].y);
+    gctx.closePath();
+    gctx.fillStyle = accentRGBA(0.05);
+    gctx.fill();
+  }
+  function repaintGhost() { clearGhost(); for (const q of sweptQuads) paintQuad(q); }
+
+  // ===========================================================================
+  // Zeichnen (SVG)
+  // ===========================================================================
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  const poly = (pts) => pts.map(p => { const s = w2s(p); return s.x.toFixed(1) + ',' + s.y.toFixed(1); }).join(' ');
+
+  function gridSvg() {
+    // sichtbarer Weltbereich
+    const tl = s2w({ x: 0, y: 0 }), br = s2w({ x: VBW, y: VBH });
+    const minX = Math.min(tl.x, br.x), maxX = Math.max(tl.x, br.x);
+    const minY = Math.min(tl.y, br.y), maxY = Math.max(tl.y, br.y);
+    const steps = [1, 2, 5, 10, 20, 50, 100];
+    let step = steps.find(s => s * view.scale >= 26) || 100;
+    const gcol = cssVar('--grid'), gstrong = cssVar('--grid-strong');
+    let out = '';
+    const x0 = Math.floor(minX / step) * step, y0 = Math.floor(minY / step) * step;
+    for (let x = x0; x <= maxX; x += step) {
+      const a = w2s({ x, y: minY }), b = w2s({ x, y: maxY });
+      const major = Math.round(x / step) % 5 === 0;
+      out += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${major ? gstrong : gcol}" stroke-width="1"/>`;
+    }
+    for (let y = y0; y <= maxY; y += step) {
+      const a = w2s({ x: minX, y }), b = w2s({ x: maxX, y });
+      const major = Math.round(y / step) % 5 === 0;
+      out += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${major ? gstrong : gcol}" stroke-width="1"/>`;
+    }
+    // Maßstabsbalken
+    const barM = step;
+    const p0 = { x: 16, y: VBH - 16 }, p1 = { x: 16 + barM * view.scale, y: VBH - 16 };
+    out += `<line x1="${p0.x}" y1="${p0.y}" x2="${p1.x}" y2="${p1.y}" stroke="${cssVar('--muted')}" stroke-width="2"/>`;
+    out += `<text x="${p0.x}" y="${p0.y - 6}" fill="${cssVar('--muted')}" font-size="11">${barM} m</text>`;
+    return out;
+  }
+
+  function tracesSvg() {
+    const accent = cssVar('--accent'), muted = cssVar('--muted');
+    let out = '';
+    // Radspuren (dünn, gepunktet)
+    for (const k of traceKeys) {
+      if (wheelTrace[k].length > 1)
+        out += `<polyline points="${poly(wheelTrace[k])}" fill="none" stroke="${muted}" stroke-width="1.2" stroke-dasharray="2,3"/>`;
+    }
+    // Kurvenäußere/-innere Fahrzeugkanten (kräftig): alle vier Eckspuren
+    for (const k of traceKeys) {
+      if (cornerTrace[k].length > 1)
+        out += `<polyline points="${poly(cornerTrace[k])}" fill="none" stroke="${accent}" stroke-width="1.6"/>`;
+    }
+    return out;
+  }
+
+  function vehicleSvg() {
+    const g = geometry();
+    const text = cssVar('--text'), accent = cssVar('--accent');
+    const bodyPts = poly([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl]);
+    let out = `<polygon points="${bodyPts}" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="2"/>`;
+    // Räder als kurze dicke Linien
+    const wheel = (center, ang, len) => {
+      const dx = Math.cos(ang) * len / 2, dy = Math.sin(ang) * len / 2;
+      const a = w2s({ x: center.x - dx, y: center.y - dy }), b = w2s({ x: center.x + dx, y: center.y + dy });
+      return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${text}" stroke-width="4" stroke-linecap="round"/>`;
+    };
+    const wl = 0.65; // Raddarstellungslänge m
+    out += wheel(g.wheels.rl, state.theta, wl) + wheel(g.wheels.rr, state.theta, wl);
+    out += wheel(g.wheels.fl, state.theta + steer, wl) + wheel(g.wheels.fr, state.theta + steer, wl);
+    // Front-Markierung
+    const nose = w2s({ x: (g.corners.fl.x + g.corners.fr.x) / 2, y: (g.corners.fl.y + g.corners.fr.y) / 2 });
+    out += `<circle cx="${nose.x.toFixed(1)}" cy="${nose.y.toFixed(1)}" r="3" fill="${accent}"/>`;
+    return out;
+  }
+
+  function render() {
+    svg.innerHTML = gridSvg() + tracesSvg() + vehicleSvg();
+    // Readout
+    const dmax = deltaMax(veh);
+    const degMax = dmax * 180 / Math.PI;
+    let radiusTxt;
+    if (Math.abs(steer) < 0.0005) radiusTxt = 'geradeaus';
+    else radiusTxt = 'R(Hinterachse) = ' + (veh.wheelbase / Math.tan(Math.abs(steer))).toFixed(2) + ' m';
+    readout.textContent = `Lenkung ${(steer * 180 / Math.PI).toFixed(1)}° (max ±${degMax.toFixed(1)}°) · ${radiusTxt}`;
+  }
+
+  // ===========================================================================
+  // Fahren (Animation)
+  // ===========================================================================
+  let driving = 0, lastT = 0, speed = 3;
+  function loop(t) {
+    if (!driving) return;
+    if (!lastT) lastT = t;
+    const dt = Math.min((t - lastT) / 1000, 0.05); lastT = t;
+    const ds = driving * speed * dt;
+    stepModel(ds);
+    if (!lastRecord || Math.hypot(state.x - lastRecord.x, state.y - lastRecord.y) >= 0.05) record();
+    render();
+    requestAnimationFrame(loop);
+  }
+  function startDrive(dir) { if (driving) return; driving = dir; lastT = 0; record(); requestAnimationFrame(loop); }
+  function stopDrive() { driving = 0; lastT = 0; }
+
+  // ===========================================================================
+  // Bedienung
+  // ===========================================================================
+  const $ = (id) => document.getElementById(id);
+
+  // Fahrzeug-Formular
+  const vFields = { length: 'v_length', width: 'v_width', wheelbase: 'v_wheelbase', track: 'v_track', of: 'v_of', or: 'v_or', wk: 'v_wk' };
+  function fillVehicleForm() { for (const k in vFields) $(vFields[k]).value = veh[k]; updateSteerRange(); }
+  function readVehicleForm() {
+    for (const k in vFields) { const n = parseFloat(String($(vFields[k]).value).replace(',', '.')); if (!Number.isNaN(n)) veh[k] = n; }
+    updateSteerRange(); render();
+  }
+  function updateSteerRange() {
+    const degMax = deltaMax(veh) * 180 / Math.PI;
+    const sl = $('steer'); sl.min = (-degMax).toFixed(1); sl.max = degMax.toFixed(1);
+    if (steer * 180 / Math.PI > degMax) { steer = deltaMax(veh); sl.value = degMax.toFixed(1); }
+    if (steer * 180 / Math.PI < -degMax) { steer = -deltaMax(veh); sl.value = (-degMax).toFixed(1); }
+    $('steerLbl').textContent = (steer * 180 / Math.PI).toFixed(1) + '°';
+  }
+
+  // Presets
+  const presetSel = $('preset');
+  PRESETS.forEach((p, i) => { const o = document.createElement('option'); o.value = i; o.textContent = p.name; presetSel.appendChild(o); });
+  presetSel.addEventListener('change', () => { veh = { ...PRESETS[+presetSel.value] }; fillVehicleForm(); render(); });
+  for (const k in vFields) $(vFields[k]).addEventListener('input', readVehicleForm);
+
+  // Lenkung / Speed
+  $('steer').addEventListener('input', (e) => { steer = parseFloat(e.target.value) * Math.PI / 180; $('steerLbl').textContent = parseFloat(e.target.value).toFixed(1) + '°'; render(); });
+  $('speed').addEventListener('input', (e) => { speed = parseFloat(e.target.value); $('speedLbl').textContent = speed.toFixed(1).replace('.', ',') + ' m/s'; });
+
+  // Fahr-Buttons (halten)
+  function bindHold(btn, dir) {
+    const down = (e) => { e.preventDefault(); btn.classList.add('active'); startDrive(dir); };
+    const up = () => { btn.classList.remove('active'); stopDrive(); };
+    btn.addEventListener('pointerdown', down);
+    btn.addEventListener('pointerup', up);
+    btn.addEventListener('pointerleave', up);
+    btn.addEventListener('pointercancel', up);
+  }
+  bindHold($('fwd'), +1);
+  bindHold($('back'), -1);
+
+  $('reset').addEventListener('click', () => { state = { x: 0, y: 0, theta: 0 }; resetTraces(); render(); });
+  $('center').addEventListener('click', () => { const s = w2s(state); view.panX += VBW / 2 - s.x; view.panY += VBH / 2 - s.y; repaintGhost(); render(); });
+  $('fit').addEventListener('click', fitView);
+
+  function fitView() {
+    const pts = [];
+    for (const k of traceKeys) { pts.push(...cornerTrace[k]); }
+    const g = geometry(); pts.push(g.corners.fl, g.corners.fr, g.corners.rl, g.corners.rr);
+    if (pts.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of pts) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+    const wm = Math.max(maxX - minX, 2), hm = Math.max(maxY - minY, 2);
+    const margin = 0.12;
+    view.scale = Math.min(VBW / (wm * (1 + margin)), VBH / (hm * (1 + margin)));
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    view.panX = VBW / 2 - cx * view.scale;
+    view.panY = VBH / 2 + cy * view.scale;
+    repaintGhost(); render();
+  }
+
+  // Pan (ziehen) + Zoom (Rad)
+  let panning = null;
+  function svgPt(e) { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * VBW, y: (e.clientY - r.top) / r.height * VBH }; }
+  svg.addEventListener('pointerdown', (e) => { panning = { p: svgPt(e), panX: view.panX, panY: view.panY }; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointermove', (e) => {
+    if (!panning) return;
+    const p = svgPt(e);
+    view.panX = panning.panX + (p.x - panning.p.x);
+    view.panY = panning.panY + (p.y - panning.p.y);
+    repaintGhost(); render();
+  });
+  svg.addEventListener('pointerup', (e) => { panning = null; });
+  svg.addEventListener('pointercancel', () => { panning = null; });
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const p = svgPt(e); const wpt = s2w(p);
+    const factor = Math.exp(-e.deltaY * 0.0012);
+    view.scale = Math.max(4, Math.min(400, view.scale * factor));
+    // Zoom um Cursor: Welt-Punkt unter Cursor halten
+    view.panX = p.x - wpt.x * view.scale;
+    view.panY = p.y + wpt.y * view.scale;
+    repaintGhost(); render();
+  }, { passive: false });
+
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { repaintGhost(); render(); });
+
+  // Start
+  fillVehicleForm();
+  $('speedLbl').textContent = '3,0 m/s';
+  render();
+  </script>
+</body>
+</html>
