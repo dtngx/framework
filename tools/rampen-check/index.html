@@ -306,7 +306,19 @@
       sx += seg.length;
     });
 
-    const carPts = `${toSvgX(cb.rearBottom.x).toFixed(1)},${toSvgY(cb.rearBottom.y).toFixed(1)} ${toSvgX(cb.frontBottom.x).toFixed(1)},${toSvgY(cb.frontBottom.y).toFixed(1)} ${toSvgX(cb.frontTop.x).toFixed(1)},${toSvgY(cb.frontTop.y).toFixed(1)} ${toSvgX(cb.rearTop.x).toFixed(1)},${toSvgY(cb.rearTop.y).toFixed(1)}`;
+    // Unterboden-Endpunkte im Bildschirmraum (kollisionsrelevant, echte Projektion)
+    const rb = { x: toSvgX(cb.rearBottom.x), y: toSvgY(cb.rearBottom.y) };
+    const fb = { x: toSvgX(cb.frontBottom.x), y: toSvgY(cb.frontBottom.y) };
+    // Karosserie NUR optisch: feste Pixelhöhe senkrecht zur Fahrzeugneigung am
+    // Bildschirm – so bleibt es ein sauberes Rechteck statt eines verzerrten Trapezes.
+    const vx = fb.x - rb.x, vy = fb.y - rb.y;
+    const vlen = Math.hypot(vx, vy) || 1;
+    let nx = -vy / vlen, ny = vx / vlen;   // Normale auf die Unterbodenlinie
+    if (ny > 0) { nx = -nx; ny = -ny; }    // nach oben (Bildschirm: -y) ausrichten
+    const bodyPx = 46;
+    const rt = { x: rb.x + nx * bodyPx, y: rb.y + ny * bodyPx };
+    const ft = { x: fb.x + nx * bodyPx, y: fb.y + ny * bodyPx };
+    const carPts = `${rb.x.toFixed(1)},${rb.y.toFixed(1)} ${fb.x.toFixed(1)},${fb.y.toFixed(1)} ${ft.x.toFixed(1)},${ft.y.toFixed(1)} ${rt.x.toFixed(1)},${rt.y.toFixed(1)}`;
 
     let gapIndicator = '';
     if (result.minGapX > 0 && result.minGapX < totalLen) {
@@ -328,7 +340,7 @@
         <path d="${profilePath}" fill="none" stroke="${c.profile}" stroke-width="2.5" />
         ${segLabels}
         <polygon points="${carPts}" fill="${carColor}" fill-opacity="0.82" stroke="${carColor}" stroke-width="1.5" />
-        <line x1="${toSvgX(cb.rearBottom.x).toFixed(1)}" y1="${toSvgY(cb.rearBottom.y).toFixed(1)}" x2="${toSvgX(cb.frontBottom.x).toFixed(1)}" y2="${toSvgY(cb.frontBottom.y).toFixed(1)}" stroke="#ffffff" stroke-opacity="0.85" stroke-width="2" stroke-dasharray="4,3" />
+        <line x1="${rb.x.toFixed(1)}" y1="${rb.y.toFixed(1)}" x2="${fb.x.toFixed(1)}" y2="${fb.y.toFixed(1)}" stroke="#ffffff" stroke-opacity="0.85" stroke-width="2" stroke-dasharray="4,3" />
         <circle cx="${toSvgX(cb.rearAxle.x).toFixed(1)}" cy="${toSvgY(cb.rearAxle.y).toFixed(1)}" r="${wheelR}" fill="${c.wheelFill}" stroke="${c.wheelStroke}" stroke-width="2" />
         <circle cx="${toSvgX(cb.frontAxle.x).toFixed(1)}" cy="${toSvgY(cb.frontAxle.y).toFixed(1)}" r="${wheelR}" fill="${c.wheelFill}" stroke="${c.wheelStroke}" stroke-width="2" />
         <circle cx="${toSvgX(cb.rearAxle.x).toFixed(1)}" cy="${toSvgY(cb.rearAxle.y).toFixed(1)}" r="4" fill="${c.wheelStroke}" />
