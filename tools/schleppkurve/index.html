@@ -72,6 +72,9 @@
     }
     .btn:hover { border-color: var(--accent); color: var(--accent); }
     .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn:disabled:hover { border-color: var(--border); color: var(--text); }
+    kbd { font-family: inherit; font-size: 10.5px; background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; }
     .row .btn { flex: 1; text-align: center; }
     .hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
@@ -86,7 +89,7 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.1</span>
+      <span class="ver">v0.2</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
@@ -104,7 +107,7 @@
       <div class="side">
         <div class="panel">
           <h2>Fahrzeug</h2>
-          <label class="f">Vorlage
+          <label class="f">Fahrzeug
             <select id="preset"></select>
           </label>
           <div class="grid2">
@@ -116,7 +119,14 @@
             <label class="f">Überhang hinten (m)<input type="number" step="0.01" id="v_or"></label>
             <label class="f">Wendekreis R außen (m)<input type="number" step="0.01" id="v_wk"></label>
           </div>
-          <p class="hint">Werte editierbar = eigenes Fahrzeug. Benannt speichern kommt im nächsten Schritt.</p>
+          <label class="f" style="margin-top:2px;">Name (eigenes Fahrzeug)
+            <input type="text" id="vehName" placeholder="z. B. Müllfahrzeug 3-Achs">
+          </label>
+          <div class="row">
+            <button class="btn" id="vehSave">⭐ Speichern</button>
+            <button class="btn" id="vehDelete">Löschen</button>
+          </div>
+          <p class="hint">Maße editieren, Namen vergeben, speichern – eigene Fahrzeuge liegen lokal im Browser (localStorage).</p>
         </div>
 
         <div class="panel">
@@ -136,7 +146,7 @@
             <button class="btn" id="fit">Einpassen</button>
             <button class="btn" id="center">Fahrzeug zentrieren</button>
           </div>
-          <p class="hint">Vor/Zurück gedrückt halten. Ansicht: ziehen = verschieben, Mausrad = zoomen.</p>
+          <p class="hint">Vor/Zurück gedrückt halten oder Pfeiltasten: <kbd>↑</kbd><kbd>↓</kbd> fahren, <kbd>←</kbd><kbd>→</kbd> lenken. Ansicht: ziehen = verschieben, Mausrad = zoomen.</p>
         </div>
       </div>
     </div>
@@ -340,21 +350,43 @@
   }
 
   // ===========================================================================
-  // Fahren (Animation)
+  // Fahren (Animation) – Buttons (halten) und Pfeiltasten
   // ===========================================================================
-  let driving = 0, lastT = 0, speed = 3;
-  function loop(t) {
-    if (!driving) return;
+  let btnDrive = 0, speed = 3, lastT = 0, running = false;
+  const keys = new Set();
+  const STEER_RATE = 32 * Math.PI / 180; // rad/s bei Pfeiltasten-Lenkung
+
+  function syncSteerUI() {
+    const deg = steer * 180 / Math.PI;
+    $('steer').value = deg.toFixed(1);
+    $('steerLbl').textContent = deg.toFixed(1) + '°';
+  }
+
+  function frame(t) {
     if (!lastT) lastT = t;
     const dt = Math.min((t - lastT) / 1000, 0.05); lastT = t;
-    const ds = driving * speed * dt;
-    stepModel(ds);
-    if (!lastRecord || Math.hypot(state.x - lastRecord.x, state.y - lastRecord.y) >= 0.05) record();
+
+    const driveDir = keys.has('ArrowUp') ? 1 : keys.has('ArrowDown') ? -1 : btnDrive;
+    let steerDir = 0;
+    if (keys.has('ArrowLeft')) steerDir += 1;   // links = positiver Lenkwinkel
+    if (keys.has('ArrowRight')) steerDir -= 1;
+
+    if (steerDir !== 0) {
+      const dmax = deltaMax(veh);
+      steer = Math.max(-dmax, Math.min(dmax, steer + steerDir * STEER_RATE * dt));
+      syncSteerUI();
+    }
+    if (driveDir !== 0) {
+      if (lastRecord === null) record();
+      stepModel(driveDir * speed * dt);
+      if (lastRecord === null || Math.hypot(state.x - lastRecord.x, state.y - lastRecord.y) >= 0.05) record();
+    }
     render();
-    requestAnimationFrame(loop);
+
+    if (driveDir !== 0 || steerDir !== 0) requestAnimationFrame(frame);
+    else { running = false; lastT = 0; }
   }
-  function startDrive(dir) { if (driving) return; driving = dir; lastT = 0; record(); requestAnimationFrame(loop); }
-  function stopDrive() { driving = 0; lastT = 0; }
+  function ensureLoop() { if (running) return; running = true; lastT = 0; requestAnimationFrame(frame); }
 
   // ===========================================================================
   // Bedienung
@@ -376,11 +408,61 @@
     $('steerLbl').textContent = (steer * 180 / Math.PI).toFixed(1) + '°';
   }
 
-  // Presets
+  // Vorlagen + eigene Fahrzeuge (localStorage)
   const presetSel = $('preset');
-  PRESETS.forEach((p, i) => { const o = document.createElement('option'); o.value = i; o.textContent = p.name; presetSel.appendChild(o); });
-  presetSel.addEventListener('change', () => { veh = { ...PRESETS[+presetSel.value] }; fillVehicleForm(); render(); });
+  const VKEY = 'schleppkurve-vehicles';
+  let customVehicles = loadVehicles();
+  function loadVehicles() { try { return JSON.parse(localStorage.getItem(VKEY) || '[]'); } catch { return []; } }
+  function persistVehicles() { localStorage.setItem(VKEY, JSON.stringify(customVehicles)); }
+  const currentIsCustom = () => presetSel.value.startsWith('c');
+  function updateDeleteBtn() { $('vehDelete').disabled = !currentIsCustom(); }
+
+  function rebuildVehicleSelect(selectValue) {
+    presetSel.innerHTML = '';
+    const og1 = document.createElement('optgroup'); og1.label = 'Vorlagen';
+    PRESETS.forEach((p, i) => { const o = document.createElement('option'); o.value = 'p' + i; o.textContent = p.name; og1.appendChild(o); });
+    presetSel.appendChild(og1);
+    if (customVehicles.length) {
+      const og2 = document.createElement('optgroup'); og2.label = 'Eigene Fahrzeuge';
+      customVehicles.forEach((p, i) => { const o = document.createElement('option'); o.value = 'c' + i; o.textContent = p.name; og2.appendChild(o); });
+      presetSel.appendChild(og2);
+    }
+    if (selectValue) presetSel.value = selectValue;
+    updateDeleteBtn();
+  }
+
+  presetSel.addEventListener('change', () => {
+    const v = presetSel.value;
+    const src = v.startsWith('c') ? customVehicles[+v.slice(1)] : PRESETS[+v.slice(1)];
+    veh = { ...src };
+    fillVehicleForm();
+    $('vehName').value = currentIsCustom() ? veh.name : '';
+    updateDeleteBtn(); render();
+  });
   for (const k in vFields) $(vFields[k]).addEventListener('input', readVehicleForm);
+
+  $('vehSave').addEventListener('click', () => {
+    readVehicleForm();
+    const name = (($('vehName').value || '').trim()) || ((prompt('Name für das Fahrzeug:') || '').trim());
+    if (!name) return;
+    const rec = { name, length: veh.length, width: veh.width, wheelbase: veh.wheelbase, of: veh.of, or: veh.or, track: veh.track, wk: veh.wk };
+    const idx = customVehicles.findIndex(x => x.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) { if (!confirm(`Fahrzeug '${name}' überschreiben?`)) return; customVehicles[idx] = rec; }
+    else customVehicles.push(rec);
+    persistVehicles();
+    rebuildVehicleSelect('c' + customVehicles.findIndex(x => x.name === name));
+    $('vehName').value = name;
+  });
+
+  $('vehDelete').addEventListener('click', () => {
+    if (!currentIsCustom()) return;
+    const i = +presetSel.value.slice(1); const nm = customVehicles[i].name;
+    if (!confirm(`Fahrzeug '${nm}' löschen?`)) return;
+    customVehicles.splice(i, 1); persistVehicles();
+    rebuildVehicleSelect('p0'); veh = { ...PRESETS[0] }; fillVehicleForm(); $('vehName').value = ''; render();
+  });
+
+  rebuildVehicleSelect('p0');
 
   // Lenkung / Speed
   $('steer').addEventListener('input', (e) => { steer = parseFloat(e.target.value) * Math.PI / 180; $('steerLbl').textContent = parseFloat(e.target.value).toFixed(1) + '°'; render(); });
@@ -388,8 +470,8 @@
 
   // Fahr-Buttons (halten)
   function bindHold(btn, dir) {
-    const down = (e) => { e.preventDefault(); btn.classList.add('active'); startDrive(dir); };
-    const up = () => { btn.classList.remove('active'); stopDrive(); };
+    const down = (e) => { e.preventDefault(); btn.classList.add('active'); btnDrive = dir; ensureLoop(); };
+    const up = () => { btn.classList.remove('active'); btnDrive = 0; };
     btn.addEventListener('pointerdown', down);
     btn.addEventListener('pointerup', up);
     btn.addEventListener('pointerleave', up);
@@ -397,6 +479,18 @@
   }
   bindHold($('fwd'), +1);
   bindHold($('back'), -1);
+
+  // Pfeiltasten (nur wenn kein Eingabefeld fokussiert ist)
+  const DRIVE_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+  window.addEventListener('keydown', (e) => {
+    if (!DRIVE_KEYS.includes(e.key)) return;
+    const ae = document.activeElement;
+    if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+    e.preventDefault();
+    if (!keys.has(e.key)) { keys.add(e.key); ensureLoop(); }
+  });
+  window.addEventListener('keyup', (e) => { keys.delete(e.key); });
+  window.addEventListener('blur', () => keys.clear());
 
   $('reset').addEventListener('click', () => { state = { x: 0, y: 0, theta: 0 }; resetTraces(); render(); });
   $('center').addEventListener('click', () => { const s = w2s(state); view.panX += VBW / 2 - s.x; view.panY += VBH / 2 - s.y; repaintGhost(); render(); });
