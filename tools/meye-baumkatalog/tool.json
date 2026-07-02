@@ -1,0 +1,10 @@
+{
+  "name": "Meye Baumkatalog",
+  "description": "Fotografischer Baumarten-Katalog von Mikkel Eye – Bäume nach Art und Jahreszeit filtern. Referenz für Freianlagen- und Bepflanzungsplanung.",
+  "category": "Referenz",
+  "icon": "🌳",
+  "type": "link",
+  "url": "https://meye.dk",
+  "tags": ["Bäume", "Freianlagen", "Bepflanzung", "Landschaft"],
+  "author": "meye.dk"
+}
