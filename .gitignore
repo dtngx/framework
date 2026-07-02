@@ -2,5 +2,9 @@ node_modules/
 *.log
 .DS_Store
 .env
+
+# Lizenzierte/CI-Assets NICHT ins öffentliche Repo (PP Pangram Sans, KEKS-Logos)
+public/assets/fonts/
+public/assets/keks-logo-*.png
 # Vom Projektstruktur-Generator erzeugte Testordner
 Neues-Projekt_*/
