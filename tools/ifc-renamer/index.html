@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IFC-Renamer · KEKS Werkzeugkasten</title>
+  <style>
+    :root {
+      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
+      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea;
+      --ok:#1f9d5a; --warn:#e08a00; --err:#e5484d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+    a.back:hover { color: var(--accent); }
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 20px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+    .head h1 .accent { color: var(--accent); }
+    .ver { font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 4px; padding: 1px 6px; }
+    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 14px; }
+    .panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 12px; font-weight: 600; }
+
+    .drop {
+      border: 1.5px dashed var(--border); border-radius: 12px; padding: 34px 20px; text-align: center;
+      color: var(--muted); transition: all .15s; cursor: pointer; background: var(--panel2);
+    }
+    .drop.over { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    .drop strong { color: var(--text); }
+
+    label.field { display: block; margin-bottom: 12px; }
+    label.field .cap { font-size: 11px; color: var(--muted); margin-bottom: 4px; display: block; }
+    input[type=text], input[type=number], select {
+      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 10px; border-radius: 7px; font-family: inherit; font-size: 14px; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    input:disabled { opacity: .5; cursor: not-allowed; }
+
+    .coord-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .coord-grid .cap { font-size: 10px; }
+    .coord-row-label { font-size: 12px; color: var(--muted); margin: 4px 0 6px; }
+    .decimal { margin-top: 12px; font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+    .btn {
+      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); padding: 9px 16px; border-radius: 7px; font-size: 13px; transition: all .15s;
+      font-weight: 600;
+    }
+    .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover:not(:disabled) { color: #fff; filter: brightness(1.05); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .fav-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; }
+    @media (max-width: 560px) { .fav-row { grid-template-columns: 1fr; } .coord-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .status { font-size: 13px; color: var(--muted); margin-top: 6px; min-height: 20px; }
+    .status.ok { color: var(--ok); } .status.err { color: var(--err); } .status.warn { color: var(--warn); }
+    #editor[hidden] { display: none; }
+    .hint { font-size: 11.5px; color: var(--muted); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+    <div class="head">
+      <h1>IFC<span class="accent">-Renamer</span></h1>
+      <span class="ver">v1.0</span>
+      <span class="sub">Projekt · Standort · Gebäude · Koordinaten</span>
+    </div>
+
+    <div class="panel">
+      <div id="drop" class="drop">
+        <p><strong>IFC-Datei hierher ziehen</strong> oder klicken zum Auswählen</p>
+        <p class="hint">Alles läuft lokal im Browser – die Datei wird nicht hochgeladen.</p>
+      </div>
+      <input id="file" type="file" accept=".ifc" hidden />
+      <div id="status" class="status"></div>
+    </div>
+
+    <div id="editor" hidden>
+      <div class="panel">
+        <h2>Projekt (IfcProject)</h2>
+        <label class="field"><span class="cap">Name</span><input type="text" id="projectName" /></label>
+      </div>
+
+      <div class="panel">
+        <h2>Standort (IfcSite)</h2>
+        <label class="field"><span class="cap">Name</span><input type="text" id="siteName" /></label>
+
+        <div class="coord-row-label">Breite / Latitude</div>
+        <div class="coord-grid">
+          <label><span class="cap">Grad</span><input type="number" id="latDeg" /></label>
+          <label><span class="cap">Min</span><input type="number" id="latMin" /></label>
+          <label><span class="cap">Sek</span><input type="number" id="latSec" /></label>
+          <label><span class="cap">Millionstel</span><input type="number" id="latMs" /></label>
+        </div>
+
+        <div class="coord-row-label" style="margin-top:12px;">Länge / Longitude</div>
+        <div class="coord-grid">
+          <label><span class="cap">Grad</span><input type="number" id="lonDeg" /></label>
+          <label><span class="cap">Min</span><input type="number" id="lonMin" /></label>
+          <label><span class="cap">Sek</span><input type="number" id="lonSec" /></label>
+          <label><span class="cap">Millionstel</span><input type="number" id="lonMs" /></label>
+        </div>
+        <div class="decimal" id="decimal">Dezimal: –</div>
+      </div>
+
+      <div class="panel">
+        <h2>Gebäude (IfcBuilding)</h2>
+        <label class="field"><span class="cap">Name</span><input type="text" id="buildingName" /></label>
+      </div>
+
+      <div class="panel">
+        <h2>Favoriten</h2>
+        <div class="fav-row">
+          <select id="favSelect"><option value="">– kein Favorit –</option></select>
+          <button class="btn" id="favLoad" disabled>Laden</button>
+          <button class="btn" id="favSave">⭐ Speichern</button>
+          <button class="btn" id="favDelete" disabled>Löschen</button>
+        </div>
+        <p class="hint">Favoriten speichern Namen + Koordinaten lokal im Browser (localStorage).</p>
+      </div>
+
+      <div class="panel">
+        <div class="row">
+          <button class="btn primary" id="download">⬇ Geänderte IFC herunterladen</button>
+          <span class="hint" id="fileInfo"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  'use strict';
+
+  // ===========================================================================
+  // IFC-STEP-Parser – Regex-Logik 1:1 aus IfcParser.cs portiert
+  // ===========================================================================
+
+  function splitIfcParameters(content) {
+    const result = [];
+    let depth = 0, inQuote = false, start = 0;
+    for (let i = 0; i < content.length; i++) {
+      const c = content[i];
+      if (c === "'" && !inQuote) { inQuote = true; continue; }
+      if (c === "'" && inQuote) {
+        if (i + 1 < content.length && content[i + 1] === "'") { i++; continue; }
+        inQuote = false; continue;
+      }
+      if (inQuote) continue;
+      if (c === '(') depth++;
+      else if (c === ')') depth--;
+      else if (c === ',' && depth === 0) { result.push(content.slice(start, i)); start = i + 1; }
+    }
+    result.push(content.slice(start));
+    return result;
+  }
+
+  function unquoteIfc(value) {
+    const t = value.trim();
+    if (t === '$' || t === '*') return '';
+    if (t.startsWith("'") && t.endsWith("'")) return t.slice(1, -1).replaceAll("''", "'");
+    return t;
+  }
+
+  function quoteIfc(value) {
+    if (!value) return '$';
+    return "'" + value.replaceAll("'", "''") + "'";
+  }
+
+  function buildCoordTuple(deg, min, sec, ms) { return `(${deg},${min},${sec},${ms})`; }
+
+  function parseCoordTuple(raw) {
+    const m = raw.match(/\(\s*(-?\d+)\s*,\s*(-?\d+)\s*,\s*(-?\d+)\s*(?:,\s*(-?\d+))?\s*\)/);
+    const t = { deg: 0, min: 0, sec: 0, ms: 0 };
+    if (m) {
+      t.deg = parseInt(m[1]) || 0;
+      t.min = parseInt(m[2]) || 0;
+      t.sec = parseInt(m[3]) || 0;
+      if (m[4] !== undefined) t.ms = parseInt(m[4]) || 0;
+    }
+    return t;
+  }
+
+  function extractName(entityLine) {
+    const m = entityLine.match(/\(([\s\S]+)\)\s*;/);
+    if (!m) return '';
+    const params = splitIfcParameters(m[1]);
+    return params.length > 2 ? unquoteIfc(params[2]) : '';
+  }
+
+  // Findet eine Entity nach Typ; sammelt mehrzeilige Entities bis ';'
+  function findEntity(lines, type) {
+    const startRe = new RegExp('^#\\d+\\s*=\\s*' + type + '\\s*\\(', 'i');
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].replace(/^\s+/, '');
+      if (startRe.test(trimmed)) {
+        let fullEntity = lines[i];
+        const startLine = i;
+        while (!fullEntity.replace(/\s+$/, '').endsWith(';') && i + 1 < lines.length) {
+          i++; fullEntity += '\n' + lines[i];
+        }
+        const idMatch = trimmed.match(/^(#\d+)/);
+        return {
+          entityId: idMatch ? idMatch[1] : '',
+          fullLine: fullEntity,
+          lineIndex: startLine,
+          name: extractName(fullEntity),
+        };
+      }
+    }
+    return null;
+  }
+
+  function findSite(lines) {
+    const site = findEntity(lines, 'IFCSITE');
+    if (!site) return null;
+    // RefLatitude an Index 9, RefLongitude an Index 10
+    const m = site.fullLine.match(/\(([\s\S]+)\)\s*;/);
+    site.lat = { deg: 0, min: 0, sec: 0, ms: 0 };
+    site.lon = { deg: 0, min: 0, sec: 0, ms: 0 };
+    site.hasCoords = false;
+    if (m) {
+      const params = splitIfcParameters(m[1]);
+      if (params.length > 10) {
+        site.latRaw = params[9].trim();
+        site.lonRaw = params[10].trim();
+        site.lat = parseCoordTuple(site.latRaw);
+        site.lon = parseCoordTuple(site.lonRaw);
+        site.hasCoords = true;
+      }
+    }
+    return site;
+  }
+
+  function replaceNameInEntity(entityLine, newName) {
+    const m = entityLine.match(/^([\s\S]*?\()([\s\S]+)(\)\s*;[\s\S]*)$/);
+    if (!m) return entityLine;
+    const params = splitIfcParameters(m[2]);
+    if (params.length > 2) params[2] = quoteIfc(newName);
+    return m[1] + params.join(',') + m[3];
+  }
+
+  function replaceCoordsInSite(entityLine, lat, lon) {
+    const m = entityLine.match(/^([\s\S]*?\()([\s\S]+)(\)\s*;[\s\S]*)$/);
+    if (!m) return entityLine;
+    const params = splitIfcParameters(m[2]);
+    if (params.length > 10) {
+      params[9] = buildCoordTuple(lat.deg, lat.min, lat.sec, lat.ms);
+      params[10] = buildCoordTuple(lon.deg, lon.min, lon.sec, lon.ms);
+    }
+    return m[1] + params.join(',') + m[3];
+  }
+
+  function replaceEntityLines(lines, startIndex, oldFull, newFull) {
+    const oldCount = oldFull.split('\n').length;
+    const newLines = newFull.split('\n');
+    if (startIndex < lines.length) lines[startIndex] = newLines.length > 0 ? newLines[0] : '';
+    for (let i = 1; i < oldCount && startIndex + i < lines.length; i++) {
+      lines[startIndex + i] = i < newLines.length ? newLines[i] : '';
+    }
+  }
+
+  // ===========================================================================
+  // Zustand & UI
+  // ===========================================================================
+  const FAV_KEY = 'ifc-renamer-favorites';
+  let fileName = null, fileLines = null, newline = '\r\n';
+  let project = null, site = null, building = null;
+  let favorites = loadFavorites();
+
+  const $ = (id) => document.getElementById(id);
+  const F = {
+    projectName: $('projectName'), siteName: $('siteName'), buildingName: $('buildingName'),
+    latDeg: $('latDeg'), latMin: $('latMin'), latSec: $('latSec'), latMs: $('latMs'),
+    lonDeg: $('lonDeg'), lonMin: $('lonMin'), lonSec: $('lonSec'), lonMs: $('lonMs'),
+  };
+  const coordFields = ['latDeg','latMin','latSec','latMs','lonDeg','lonMin','lonSec','lonMs'];
+
+  function setStatus(text, cls = '') { const s = $('status'); s.textContent = text; s.className = 'status ' + cls; }
+  const intVal = (el) => { const v = parseInt(String(el.value).trim()); return Number.isNaN(v) ? 0 : v; };
+
+  // ---------- Datei öffnen ----------
+  function openFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => openText(file.name, e.target.result);
+    reader.onerror = () => setStatus('Fehler beim Lesen der Datei.', 'err');
+    reader.readAsText(file, 'iso-8859-1'); // IFC ist üblicherweise ISO-8859-1
+  }
+
+  function openText(name, text) {
+    fileName = name;
+    newline = text.includes('\r\n') ? '\r\n' : '\n';
+    fileLines = text.split(/\r\n|\r|\n/);
+
+    project = findEntity(fileLines, 'IFCPROJECT');
+    site = findSite(fileLines);
+    building = findEntity(fileLines, 'IFCBUILDING');
+
+    $('editor').hidden = false;
+
+    F.projectName.value = project ? project.name : '';  F.projectName.disabled = !project;
+    F.siteName.value = site ? site.name : '';            F.siteName.disabled = !site;
+    F.buildingName.value = building ? building.name : ''; F.buildingName.disabled = !building;
+
+    if (site) {
+      F.latDeg.value = site.lat.deg; F.latMin.value = site.lat.min; F.latSec.value = site.lat.sec; F.latMs.value = site.lat.ms;
+      F.lonDeg.value = site.lon.deg; F.lonMin.value = site.lon.min; F.lonSec.value = site.lon.sec; F.lonMs.value = site.lon.ms;
+    } else {
+      coordFields.forEach(k => F[k].value = 0);
+    }
+    coordFields.forEach(k => F[k].disabled = !site);
+    updateDecimal();
+
+    $('fileInfo').textContent = `${name} · ${fileLines.length} Zeilen`;
+
+    const missing = [];
+    if (!project) missing.push('IFCPROJECT');
+    if (!site) missing.push('IFCSITE');
+    if (!building) missing.push('IFCBUILDING');
+    if (missing.length) setStatus('⚠ Nicht gefunden: ' + missing.join(', '), 'warn');
+    else setStatus(`Geöffnet: ${name}`, 'ok');
+  }
+
+  // ---------- Dezimalanzeige ----------
+  function updateDecimal() {
+    const toDec = (d, m, s, ms) => d + m / 60 + (s + ms / 1e6) / 3600;
+    const lat = toDec(intVal(F.latDeg), intVal(F.latMin), intVal(F.latSec), intVal(F.latMs));
+    const lon = toDec(intVal(F.lonDeg), intVal(F.lonMin), intVal(F.lonSec), intVal(F.lonMs));
+    $('decimal').textContent = `Dezimal: ${lat.toFixed(6)}° N, ${lon.toFixed(6)}° E`;
+  }
+  coordFields.forEach(k => F[k].addEventListener('input', updateDecimal));
+
+  // ---------- Download (entspricht "Speichern unter") ----------
+  function downloadIfc() {
+    if (!fileLines) return;
+    const lines = fileLines.slice();
+
+    if (project) {
+      const nl = replaceNameInEntity(project.fullLine, F.projectName.value.trim());
+      replaceEntityLines(lines, project.lineIndex, project.fullLine, nl);
+    }
+    if (site) {
+      let nl = replaceNameInEntity(site.fullLine, F.siteName.value.trim());
+      nl = replaceCoordsInSite(nl,
+        { deg: intVal(F.latDeg), min: intVal(F.latMin), sec: intVal(F.latSec), ms: intVal(F.latMs) },
+        { deg: intVal(F.lonDeg), min: intVal(F.lonMin), sec: intVal(F.lonSec), ms: intVal(F.lonMs) });
+      replaceEntityLines(lines, site.lineIndex, site.fullLine, nl);
+    }
+    if (building) {
+      const nl = replaceNameInEntity(building.fullLine, F.buildingName.value.trim());
+      replaceEntityLines(lines, building.lineIndex, building.fullLine, nl);
+    }
+
+    const text = lines.join(newline);
+    // ISO-8859-1 (Latin-1) kodieren – ein Byte pro Zeichen
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i) & 0xff;
+
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName || 'output.ifc';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    setStatus('✅ Datei heruntergeladen: ' + (fileName || 'output.ifc'), 'ok');
+  }
+
+  // ---------- Favoriten (localStorage statt %APPDATA%) ----------
+  function loadFavorites() {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }
+    catch { return []; }
+  }
+  function persistFavorites() { localStorage.setItem(FAV_KEY, JSON.stringify(favorites)); }
+
+  function refreshFavSelect() {
+    const sel = $('favSelect');
+    sel.innerHTML = '<option value="">– kein Favorit –</option>';
+    favorites.forEach((f, i) => {
+      const o = document.createElement('option');
+      o.value = String(i); o.textContent = f.displayName;
+      sel.appendChild(o);
+    });
+    onFavSelectChange();
+  }
+  function onFavSelectChange() {
+    const has = $('favSelect').value !== '';
+    $('favLoad').disabled = !has;
+    $('favDelete').disabled = !has;
+  }
+
+  function saveFavorite() {
+    const name = (prompt('Name für den Favoriten:') || '').trim();
+    if (!name) return;
+    const existingIdx = favorites.findIndex(f => f.displayName.toLowerCase() === name.toLowerCase());
+    if (existingIdx >= 0) {
+      if (!confirm(`Favorit '${name}' existiert bereits. Überschreiben?`)) return;
+      favorites.splice(existingIdx, 1);
+    }
+    favorites.push({
+      displayName: name,
+      projectName: F.projectName.value.trim(),
+      siteName: F.siteName.value.trim(),
+      buildingName: F.buildingName.value.trim(),
+      latDeg: intVal(F.latDeg), latMin: intVal(F.latMin), latSec: intVal(F.latSec), latMs: intVal(F.latMs),
+      lonDeg: intVal(F.lonDeg), lonMin: intVal(F.lonMin), lonSec: intVal(F.lonSec), lonMs: intVal(F.lonMs),
+    });
+    persistFavorites();
+    refreshFavSelect();
+    $('favSelect').value = String(favorites.length - 1);
+    onFavSelectChange();
+    setStatus(`⭐ Favorit '${name}' gespeichert`, 'ok');
+  }
+
+  function loadFavorite() {
+    const idx = $('favSelect').value;
+    if (idx === '') return;
+    const f = favorites[+idx];
+    F.projectName.value = f.projectName;
+    F.siteName.value = f.siteName;
+    F.buildingName.value = f.buildingName;
+    F.latDeg.value = f.latDeg; F.latMin.value = f.latMin; F.latSec.value = f.latSec; F.latMs.value = f.latMs;
+    F.lonDeg.value = f.lonDeg; F.lonMin.value = f.lonMin; F.lonSec.value = f.lonSec; F.lonMs.value = f.lonMs;
+    updateDecimal();
+    setStatus(`⭐ Favorit '${f.displayName}' geladen – noch nicht heruntergeladen!`, 'warn');
+  }
+
+  function deleteFavorite() {
+    const idx = $('favSelect').value;
+    if (idx === '') return;
+    const f = favorites[+idx];
+    if (!confirm(`Favorit '${f.displayName}' wirklich löschen?`)) return;
+    favorites.splice(+idx, 1);
+    persistFavorites();
+    refreshFavSelect();
+    setStatus('Favorit gelöscht');
+  }
+
+  // ---------- Events ----------
+  const drop = $('drop');
+  drop.addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', (e) => { if (e.target.files[0]) openFile(e.target.files[0]); });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.toLowerCase().endsWith('.ifc')) openFile(f);
+    else setStatus('Bitte eine einzelne .ifc-Datei ablegen.', 'err');
+  });
+
+  $('favSelect').addEventListener('change', onFavSelectChange);
+  $('favSave').addEventListener('click', saveFavorite);
+  $('favLoad').addEventListener('click', loadFavorite);
+  $('favDelete').addEventListener('click', deleteFavorite);
+  $('download').addEventListener('click', downloadIfc);
+
+  refreshFavSelect();
+  </script>
+</body>
+</html>

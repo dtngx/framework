@@ -1,0 +1,11 @@
+{
+  "name": "IFC-Renamer",
+  "description": "IfcProject / IfcSite / IfcBuilding umbenennen und Site-Koordinaten bearbeiten – inkl. Favoriten. Läuft komplett im Browser, die Datei verlässt den Rechner nicht.",
+  "category": "IFC / BIM",
+  "icon": "🏗️",
+  "type": "page",
+  "entry": "index.html",
+  "version": "1.0",
+  "tags": ["IFC", "BIM", "STEP", "Koordinaten"],
+  "author": "KEKS ARCHITEKTEN"
+}
