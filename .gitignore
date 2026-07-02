@@ -3,8 +3,9 @@ node_modules/
 .DS_Store
 .env
 
-# Lizenzierte/CI-Assets NICHT ins öffentliche Repo (PP Pangram Sans, KEKS-Logos)
+# PP Pangram Sans ist kommerziell lizenziert – NICHT ins Repo (auch nicht privat weitergeben)
 public/assets/fonts/
-public/assets/keks-logo-*.png
+# Hinweis: Die KEKS-Logos (public/assets/keks-logo-*.png) sind eigene Marken-Assets
+# und werden bewusst mitversioniert.
 # Vom Projektstruktur-Generator erzeugte Testordner
 Neues-Projekt_*/
