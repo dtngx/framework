@@ -1,0 +1,10 @@
+{
+  "name": "U-Wert-Rechner",
+  "description": "Wärmedurchgang (U-Wert), Tauwasser- und Feuchteschutznachweis für Bauteilaufbauten – interaktiver Rechner von ubakus.de.",
+  "category": "Berechnung",
+  "icon": "🌡️",
+  "type": "link",
+  "url": "https://www.ubakus.de/u-wert-rechner/",
+  "tags": ["U-Wert", "Wärmeschutz", "Tauwasser", "Bauphysik"],
+  "author": "ubakus.de"
+}
