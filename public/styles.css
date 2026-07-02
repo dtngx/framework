@@ -81,9 +81,9 @@ body {
 .brand { display: flex; align-items: center; gap: 16px; }
 .brand-logo { display: flex; align-items: center; }
 .brand-logo img { height: 34px; width: auto; display: block; }
-.logo-dark { display: none; }
-:root[data-theme="dark"] .logo-light { display: none; }
-:root[data-theme="dark"] .logo-dark { display: block; }
+.brand-logo img.logo-dark { display: none; }
+:root[data-theme="dark"] .brand-logo img.logo-light { display: none; }
+:root[data-theme="dark"] .brand-logo img.logo-dark { display: block; }
 .brand-divider { width: 1px; height: 32px; background: var(--border); }
 .brand-product {
   font-size: 15px;
