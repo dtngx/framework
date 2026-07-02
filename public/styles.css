@@ -219,6 +219,8 @@ code {
   display: grid; place-items: center;
   padding: 24px; z-index: 50;
 }
+/* hidden-Attribut muss die display-Regel oben schlagen, sonst bleibt das Fenster sichtbar */
+.modal[hidden] { display: none; }
 .modal-box {
   background: var(--bg-elev);
   border: 1px solid var(--border);
