@@ -2,7 +2,7 @@
 'use strict';
 
 /*
- * Architektur-Toolbox – Dashboard-Server
+ * KEKS Werkzeugkasten – Dashboard-Server
  * -------------------------------------------------------------
  * Reiner Node.js-Server ohne externe Abhängigkeiten.
  * Start:  node server.js   (optional: PORT=8080 node server.js)
@@ -247,7 +247,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   const tools = discoverTools();
-  console.log('\n  🏛  Architektur-Toolbox');
+  console.log('\n  🟧 KEKS Werkzeugkasten');
   console.log(`  ➜  Dashboard läuft auf  http://localhost:${PORT}`);
   console.log(`  ➜  ${tools.length} Tool(s) erkannt${tools.length ? ': ' + tools.map((t) => t.name).join(', ') : ''}\n`);
 });

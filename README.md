@@ -1,4 +1,4 @@
-# 🏛️ Architektur-Toolbox
+# 🟧 KEKS Werkzeugkasten
 
 Zentrales Dashboard und Startpunkt für unsere Tools rund um den
 Bauarchitektur-Workflow. Jedes Tool ist ein eigenständiges „Plugin“ –
@@ -49,9 +49,7 @@ framework/
 │   └── app.js
 └── tools/               # Ein Ordner pro Tool
     ├── _vorlage/            # Vorlage + Anleitung (wird nicht angezeigt)
-    ├── flaechenrechner/     # Beispiel: page  – Flächen nach WoFlV
-    ├── projektstruktur/     # Beispiel: script – HOAI-Ordnerstruktur anlegen
-    └── baunormen/           # Beispiel: link  – Normen-Referenz
+    └── dataholz/            # link – Holzbauteil-Katalog dataholz.eu
 ```
 
 ## Hinweis zur Ausführung von Scripts
