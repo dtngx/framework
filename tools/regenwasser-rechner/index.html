@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regenwasser-Rechner · KEKS Werkzeugkasten</title>
+  <style>
+    :root {
+      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
+      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+    a.back:hover { color: var(--accent); }
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 20px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+    .head h1 .accent { color: var(--accent); }
+    .ver { font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 4px; padding: 1px 6px; }
+    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+
+    .cols {
+      display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1.1fr 36px; gap: 10px;
+      font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+      padding: 0 2px 8px; font-weight: 600;
+    }
+    .row {
+      display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1.1fr 36px; gap: 10px;
+      align-items: center; margin-bottom: 8px;
+    }
+    input {
+      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 10px; border-radius: 7px; font-family: inherit; font-size: 14px; outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    .result { font-size: 14px; font-variant-numeric: tabular-nums; padding-left: 2px; }
+    .result.bad { color: var(--err); font-size: 12px; }
+    .btn {
+      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); padding: 9px 16px; border-radius: 7px; font-size: 13px; transition: all .15s; font-weight: 600;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { color: #fff; filter: brightness(1.05); }
+    .btn-x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; }
+    .btn-x:hover { color: var(--err); }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .total {
+      display: flex; justify-content: space-between; align-items: baseline;
+      border-top: 1px solid var(--border); margin-top: 6px; padding-top: 14px;
+    }
+    .total .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+    .total .val { font-size: 26px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .formula { font-size: 11.5px; color: var(--muted); margin-top: 12px; }
+    @media (max-width: 680px) {
+      .cols { display: none; }
+      .row { grid-template-columns: 1fr 1fr; }
+      .row .result { grid-column: 1 / 2; }
+      .row .btn-x { grid-column: 2 / 3; justify-self: end; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+    <div class="head">
+      <h1>Regenwasser<span class="accent">-Rechner</span></h1>
+      <span class="ver">v1.0</span>
+      <span class="sub">Teilflächen · Regenmenge · Neigung</span>
+    </div>
+
+    <div class="panel">
+      <div class="cols">
+        <span>Name</span><span>Regen (l/m²)</span><span>Fläche (m²)</span><span>Neigung (°)</span><span>Regenwasser</span><span></span>
+      </div>
+      <div id="rows"></div>
+      <div class="actions" style="margin-top:6px;">
+        <button class="btn" id="add">+ Teilfläche hinzufügen</button>
+      </div>
+      <div class="total">
+        <span class="lbl">Gesamtes Regenwasser</span>
+        <span class="val" id="total">0,00</span>
+      </div>
+      <p class="formula">Berechnung je Teilfläche: (Regen ÷ 10000) × Fläche × cos(Neigung)</p>
+    </div>
+
+    <div class="panel actions">
+      <button class="btn primary" id="export">⬇ Als CSV (Excel) exportieren</button>
+      <span class="formula" id="hint" style="margin:0;"></span>
+    </div>
+  </div>
+
+  <script>
+  'use strict';
+
+  const rowsEl = document.getElementById('rows');
+  const totalEl = document.getElementById('total');
+  let rows = []; // { el, name, l, A, alpha, resultEl }
+
+  // Komma- oder Punkt-Dezimal einlesen; NaN wenn ungültig
+  function parseNum(v) {
+    const s = String(v).trim().replace(',', '.');
+    if (s === '') return NaN;
+    const n = parseFloat(s);
+    return Number.isNaN(n) ? NaN : n;
+  }
+
+  // Deutsches Zahlenformat für Anzeige/Export
+  const fmt = (n, dec = 2) => n.toLocaleString('de-DE', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+
+  // Ergebnis einer Teilfläche – exakt wie im Original: (l/10000)*A*cos(alpha)
+  function computeRow(r) {
+    const l = parseNum(r.l.value), A = parseNum(r.A.value), alpha = parseNum(r.alpha.value);
+    if (Number.isNaN(l) || Number.isNaN(A) || Number.isNaN(alpha)) {
+      return { valid: false };
+    }
+    const res = (l / 10000) * A * Math.cos(alpha * Math.PI / 180);
+    return { valid: true, name: r.name.value.trim(), l, A, alpha, res };
+  }
+
+  function recompute() {
+    let total = 0;
+    for (const r of rows) {
+      const c = computeRow(r);
+      if (c.valid) {
+        r.resultEl.textContent = fmt(c.res);
+        r.resultEl.className = 'result';
+        total += c.res;
+      } else {
+        // nur meckern, wenn überhaupt etwas eingegeben wurde
+        const anyInput = [r.l, r.A, r.alpha].some(i => i.value.trim() !== '');
+        r.resultEl.textContent = anyInput ? 'Ungültige Eingabe' : '–';
+        r.resultEl.className = anyInput ? 'result bad' : 'result';
+      }
+    }
+    totalEl.textContent = fmt(total);
+  }
+
+  function addRow(preset = {}) {
+    const el = document.createElement('div');
+    el.className = 'row';
+    el.innerHTML = `
+      <input type="text" placeholder="z. B. Dach Nord" />
+      <input type="text" inputmode="decimal" placeholder="0" />
+      <input type="text" inputmode="decimal" placeholder="0" />
+      <input type="text" inputmode="decimal" placeholder="0" />
+      <span class="result">–</span>
+      <button class="btn-x" title="Entfernen">×</button>
+    `;
+    const [name, l, A, alpha] = el.querySelectorAll('input');
+    const resultEl = el.querySelector('.result');
+    name.value = preset.name || '';
+    l.value = preset.l || ''; A.value = preset.A || ''; alpha.value = preset.alpha || '';
+
+    const r = { el, name, l, A, alpha, resultEl };
+    [name, l, A, alpha].forEach(i => i.addEventListener('input', recompute));
+    el.querySelector('.btn-x').addEventListener('click', () => {
+      rows = rows.filter(x => x !== r);
+      el.remove();
+      recompute();
+    });
+
+    rows.push(r);
+    rowsEl.appendChild(el);
+    recompute();
+  }
+
+  // ---------- CSV-Export (Semikolon + BOM, öffnet direkt in Excel) ----------
+  function exportCsv() {
+    const valid = rows.map(computeRow).filter(c => c.valid);
+    if (valid.length === 0) {
+      document.getElementById('hint').textContent = 'Bitte zuerst gültige Werte eingeben.';
+      return;
+    }
+    const sep = ';';
+    const lines = [];
+    lines.push(['Name', 'Regenmenge (l/m²)', 'Fläche (m²)', 'Neigung (Grad)', 'Regenwasser'].join(sep));
+    let total = 0;
+    for (const c of valid) {
+      total += c.res;
+      lines.push([csv(c.name), fmt(c.l), fmt(c.A), fmt(c.alpha), fmt(c.res)].join(sep));
+    }
+    lines.push(['Gesamt', '', '', '', fmt(total)].join(sep));
+
+    const content = '﻿' + lines.join('\r\n'); // BOM für Umlaute in Excel
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Regenwasser.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    document.getElementById('hint').textContent = `${valid.length} Teilfläche(n) exportiert.`;
+  }
+  // Felder mit Sonderzeichen für CSV absichern
+  function csv(v) {
+    const s = String(v);
+    return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  document.getElementById('add').addEventListener('click', () => addRow());
+  document.getElementById('export').addEventListener('click', exportCsv);
+
+  // Start mit einer Teilfläche (wie im Original)
+  addRow();
+  </script>
+</body>
+</html>

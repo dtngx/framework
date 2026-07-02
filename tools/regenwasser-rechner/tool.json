@@ -1,0 +1,11 @@
+{
+  "name": "Regenwasser-Rechner",
+  "description": "Regenwassermengen über mehrere Teilflächen ermitteln – Regenmenge, Fläche und Neigung je Teilfläche, mit Summe und CSV-Export für Excel.",
+  "category": "Berechnung",
+  "icon": "🌧️",
+  "type": "page",
+  "entry": "index.html",
+  "version": "1.0",
+  "tags": ["Regenwasser", "Entwässerung", "Dachfläche"],
+  "author": "KEKS ARCHITEKTEN"
+}
