@@ -269,9 +269,15 @@
   // ===========================================================================
   // Fahrzeug-Vorlagen (repräsentativ, editierbar)
   // ===========================================================================
+  // Alle Werte repräsentativ & editierbar – zweiachsig/starr (kein Gelenk/Anhänger)
   const PRESETS = [
-    { name: 'Pkw (Standard, RBSV-nah)', length: 4.70, width: 1.85, wheelbase: 2.70, of: 0.90, or: 1.10, track: 1.60, wk: 5.85 },
-    { name: 'Transporter (mittel)',     length: 5.90, width: 2.00, wheelbase: 3.665, of: 0.90, or: 1.335, track: 1.75, wk: 6.60 },
+    { name: 'Pkw (Standard, RBSV-nah)',   length: 4.70,  width: 1.85, wheelbase: 2.70,  of: 0.90, or: 1.10, track: 1.60, wk: 5.85 },
+    { name: 'Transporter / Sprinter',     length: 5.90,  width: 2.00, wheelbase: 3.665, of: 0.90, or: 1.335, track: 1.75, wk: 6.60 },
+    { name: 'Rettungswagen (RTW)',        length: 5.90,  width: 2.20, wheelbase: 3.665, of: 0.95, or: 1.285, track: 1.80, wk: 6.90 },
+    { name: 'Lkw Solo (2-achsig)',        length: 8.00,  width: 2.55, wheelbase: 4.50,  of: 1.40, or: 2.10, track: 2.10, wk: 10.30 },
+    { name: 'Müllfahrzeug (2-achsig)',    length: 9.30,  width: 2.50, wheelbase: 4.20,  of: 1.45, or: 3.65, track: 2.10, wk: 10.50 },
+    { name: 'Feuerwehr HLF (2-achsig)',   length: 8.00,  width: 2.50, wheelbase: 4.30,  of: 1.40, or: 2.30, track: 2.10, wk: 10.50 },
+    { name: 'Linienbus (12 m, 2-achsig)', length: 12.00, width: 2.55, wheelbase: 5.95,  of: 2.70, or: 3.35, track: 2.10, wk: 11.30 },
   ];
   let veh = { ...PRESETS[0] };
 
@@ -321,19 +327,37 @@
   }
 
   // ===========================================================================
-  // Ansicht (Welt <-> Bildschirm in viewBox-Einheiten 1000x640)
+  // Ansicht (Welt <-> Bildschirm in CSS-Pixeln der Zeichenfläche)
+  // VBW/VBH = tatsächliche Größe der Stage; wird bei Resize aktualisiert,
+  // damit Raster + Ebenen die komplette Fläche verzerrungsfrei füllen.
   // ===========================================================================
-  const VBW = 1000, VBH = 640;
+  let VBW = 1000, VBH = 640;
   const view = { scale: 30, panX: 300, panY: 380 }; // px/m, Ursprungsoffset
   const w2s = (p) => ({ x: view.panX + p.x * view.scale, y: view.panY - p.y * view.scale });
   const s2w = (p) => ({ x: (p.x - view.panX) / view.scale, y: -(p.y - view.panY) / view.scale });
 
+  const stage = document.getElementById('stage');
   const svg = document.getElementById('svg');
   const ghost = document.getElementById('ghost');
   const gctx = ghost.getContext('2d');
   const underCanvas = document.getElementById('under');
   const uctx = underCanvas.getContext('2d');
   const readout = document.getElementById('readout');
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  let viewInit = false;
+
+  // Zeichenfläche an die reale Stage-Größe anpassen (füllt den ganzen Canvas)
+  function resizeStage() {
+    VBW = Math.max(1, Math.round(stage.clientWidth));
+    VBH = Math.max(1, Math.round(stage.clientHeight));
+    svg.setAttribute('viewBox', `0 0 ${VBW} ${VBH}`);
+    for (const [cv, cx] of [[ghost, gctx], [underCanvas, uctx]]) {
+      cv.width = Math.round(VBW * DPR); cv.height = Math.round(VBH * DPR);
+      cx.setTransform(DPR, 0, 0, DPR, 0, 0); // in CSS-Pixeln zeichnen, scharf auf HiDPI
+    }
+    if (!viewInit) { view.panX = VBW * 0.30; view.panY = VBH * 0.62; viewInit = true; }
+    repaintUnderlay(); repaintGhost(); render();
+  }
 
   // Aufgezeichnete Spuren
   const traceKeys = ['fl', 'fr', 'rl', 'rr'];
@@ -631,7 +655,12 @@
   function loadVehicles() { try { return JSON.parse(localStorage.getItem(VKEY) || '[]'); } catch { return []; } }
   function persistVehicles() { localStorage.setItem(VKEY, JSON.stringify(customVehicles)); }
   const currentIsCustom = () => presetSel.value.startsWith('c');
-  function updateDeleteBtn() { $('vehDelete').disabled = !currentIsCustom(); }
+  function updateDeleteBtn() {
+    const custom = currentIsCustom();
+    const b = $('vehDelete');
+    b.disabled = !custom;
+    b.title = custom ? 'Dieses eigene Fahrzeug löschen' : 'Nur selbst angelegte Fahrzeuge können gelöscht werden – Vorlagen sind geschützt';
+  }
 
   function rebuildVehicleSelect(selectValue) {
     presetSel.innerHTML = '';
@@ -671,9 +700,9 @@
   });
 
   $('vehDelete').addEventListener('click', () => {
-    if (!currentIsCustom()) return;
+    if (!currentIsCustom()) return; // Vorlagen sind geschützt
     const i = +presetSel.value.slice(1); const nm = customVehicles[i].name;
-    if (!confirm(`Fahrzeug '${nm}' löschen?`)) return;
+    if (!confirm(`Eigenes Fahrzeug „${nm}" wirklich löschen?\n\nDas lässt sich nicht rückgängig machen. Mitgelieferte Vorlagen bleiben erhalten.`)) return;
     customVehicles.splice(i, 1); persistVehicles();
     rebuildVehicleSelect('p0'); veh = { ...PRESETS[0] }; fillVehicleForm(); $('vehName').value = ''; render();
   });
@@ -1130,7 +1159,8 @@
   // Start
   fillVehicleForm();
   $('speedLbl').textContent = '3,0 m/s';
-  render();
+  window.addEventListener('resize', resizeStage);
+  resizeStage(); // setzt VBW/VBH auf die reale Stage-Größe und rendert
   </script>
 </body>
 </html>
