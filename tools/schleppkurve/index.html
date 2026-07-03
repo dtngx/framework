@@ -89,7 +89,7 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.3</span>
+      <span class="ver">v0.4</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
@@ -152,6 +152,28 @@
 
         <div class="panel">
           <h2>Begrenzungen</h2>
+          <div class="grid2" style="margin-bottom:8px;">
+            <label class="f" style="margin:0;">Fangraster
+              <select id="snapGrid">
+                <option value="0">Aus</option>
+                <option value="0.01">1 cm</option>
+                <option value="0.05" selected>5 cm</option>
+                <option value="0.1">10 cm</option>
+                <option value="0.25">25 cm</option>
+                <option value="0.5">50 cm</option>
+                <option value="1">1 m</option>
+              </select>
+            </label>
+            <label class="f" style="margin:0;">Winkelraster
+              <select id="snapAngle">
+                <option value="0" selected>Aus</option>
+                <option value="5">5°</option>
+                <option value="15">15°</option>
+                <option value="45">45°</option>
+                <option value="90">90°</option>
+              </select>
+            </label>
+          </div>
           <div class="row">
             <button class="btn" id="drawBtn">✏ Zeichnen</button>
             <button class="btn" id="undoPt">Punkt zurück</button>
@@ -253,8 +275,24 @@
   let mode = 'pan';            // 'pan' | 'draw'
   let boundaries = [];         // Array von Polylinien (je Array {x,y} Weltkoord.)
   let currentDraw = null;      // in Arbeit befindliche Polylinie
-  let mouseWorld = null;       // Cursor-Weltposition (Gummiband)
+  let mouseWorld = null;       // Cursor-Weltposition (Gummiband, gefangen)
   let collisionState = { collision: false, points: [], minClear: null };
+  let gridSnap = 0.05;         // m, 0 = aus
+  let angleSnap = 0;           // rad, 0 = aus
+
+  // Fang: auf Raster (volle cm-Schritte) und/oder Winkelraster (rel. zum letzten Punkt)
+  function snapPoint(p) {
+    const last = (currentDraw && currentDraw.length) ? currentDraw[currentDraw.length - 1] : null;
+    if (angleSnap > 0 && last) {
+      let ang = Math.atan2(p.y - last.y, p.x - last.x);
+      ang = Math.round(ang / angleSnap) * angleSnap;
+      let len = Math.hypot(p.x - last.x, p.y - last.y);
+      if (gridSnap > 0) len = Math.round(len / gridSnap) * gridSnap;
+      return { x: last.x + Math.cos(ang) * len, y: last.y + Math.sin(ang) * len };
+    }
+    if (gridSnap > 0) return { x: Math.round(p.x / gridSnap) * gridSnap, y: Math.round(p.y / gridSnap) * gridSnap };
+    return p;
+  }
 
   function resetTraces() {
     wheelTrace = { fl: [], fr: [], rl: [], rr: [] };
@@ -433,7 +471,14 @@
     readout.textContent = `Lenkung ${(steer * 180 / Math.PI).toFixed(1)}° (max ±${degMax.toFixed(1)}°) · ${radiusTxt}`;
     // Readout Kollision/Abstand
     const cs = document.getElementById('collstat');
-    if (boundaries.length === 0) { cs.textContent = ''; }
+    if (mode === 'draw' && currentDraw && currentDraw.length && mouseWorld) {
+      const last = currentDraw[currentDraw.length - 1];
+      const len = Math.hypot(mouseWorld.x - last.x, mouseWorld.y - last.y);
+      let ang = Math.atan2(mouseWorld.y - last.y, mouseWorld.x - last.x) * 180 / Math.PI;
+      if (ang < 0) ang += 360;
+      cs.textContent = `L = ${len.toFixed(2)} m · α = ${ang.toFixed(1)}°`;
+      cs.style.color = cssVar('--boundary');
+    } else if (boundaries.length === 0) { cs.textContent = ''; }
     else if (collisionState.collision) { cs.textContent = '● KOLLISION'; cs.style.color = cssVar('--err'); }
     else { cs.textContent = 'min. Abstand ' + (collisionState.minClear != null ? collisionState.minClear.toFixed(2) : '–') + ' m'; cs.style.color = cssVar('--ok'); }
   }
@@ -593,6 +638,8 @@
   $('undoPt').addEventListener('click', () => { if (currentDraw && currentDraw.length) { currentDraw.pop(); render(); } });
   $('finishB').addEventListener('click', finishDraw);
   $('clearB').addEventListener('click', () => { boundaries = []; currentDraw = null; mouseWorld = null; render(); });
+  $('snapGrid').addEventListener('change', (e) => { gridSnap = parseFloat(e.target.value); });
+  $('snapAngle').addEventListener('change', (e) => { angleSnap = parseFloat(e.target.value) * Math.PI / 180; });
 
   window.addEventListener('keydown', (e) => {
     const ae = document.activeElement;
@@ -628,7 +675,7 @@
   svg.addEventListener('pointerdown', (e) => {
     if (mode === 'draw') {
       if (!currentDraw) currentDraw = [];
-      currentDraw.push(s2w(svgPt(e)));
+      currentDraw.push(snapPoint(s2w(svgPt(e))));
       render();
       return;
     }
@@ -636,7 +683,7 @@
     svg.setPointerCapture(e.pointerId);
   });
   svg.addEventListener('pointermove', (e) => {
-    if (mode === 'draw') { if (currentDraw) { mouseWorld = s2w(svgPt(e)); render(); } return; }
+    if (mode === 'draw') { if (currentDraw) { mouseWorld = snapPoint(s2w(svgPt(e))); render(); } return; }
     if (!panning) return;
     const p = svgPt(e);
     view.panX = panning.panX + (p.x - panning.p.x);
