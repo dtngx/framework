@@ -113,13 +113,13 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.7</span>
+      <span class="ver">v0.8</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
       Fahren, Spuren, überstrichene Fläche, Begrenzungen mit Snapping, Lageplan-Import
-      (Bild, PDF, DXF) mit maßstäblicher Kalibrierung sowie Export nach DXF (getrennte Layer)
-      und Vektor-PDF.
+      (Bild, PDF, DXF) mit maßstäblicher Kalibrierung, <strong>Routenplaner</strong> (Start/Ziel →
+      kollisionsfreier Weg) sowie Export nach DXF (getrennte Layer) und Vektor-PDF.
     </p>
 
     <div class="layout">
@@ -255,6 +255,34 @@
         </div>
 
         <div class="panel">
+          <h2>Simulation / Routenplaner</h2>
+          <div class="row">
+            <button class="btn" id="plStart">① Start setzen</button>
+            <button class="btn" id="plGoal">② Ziel setzen</button>
+          </div>
+          <label class="chk" style="margin-top:10px;"><input type="checkbox" id="plIgnoreHead"> Zielrichtung egal</label>
+          <label class="f" style="margin:2px 0 0;">Sicherheitsabstand (m)
+            <input type="number" step="0.05" min="0" id="plClearance" value="0.2">
+          </label>
+          <div class="row" style="margin-top:10px;">
+            <button class="btn" id="plGo">▶ Route berechnen</button>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <button class="btn" id="plPlay" disabled>Abfahren ▶</button>
+            <button class="btn" id="plApply" disabled>Als Spur übernehmen</button>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <button class="btn" id="plReset">Zurücksetzen</button>
+          </div>
+          <p class="hint" id="plStatus" style="min-height:0;"></p>
+          <p class="hint"><strong>Start</strong> und <strong>Ziel</strong> setzen: auf die Position klicken, dann
+            ziehen für die Ausrichtung. „Route berechnen" sucht mit dem aktuellen Fahrzeug einen kollisionsfreien,
+            fahrbaren Weg (vor/zurück, Rückwärts wird minimiert) und dockt möglichst genau am Ziel an.
+            <strong>Begrenzungen</strong> wirken als Wände – für „innerhalb bleiben" den Bereich umschließen.
+            <strong>Als Spur übernehmen</strong> erzeugt Reifenspuren/Hüllkurve (dann exportierbar).</p>
+        </div>
+
+        <div class="panel">
           <h2>Export</h2>
           <label class="chk"><input type="checkbox" id="exGrid"> Raster einschließen</label>
           <label class="chk"><input type="checkbox" id="exBg" checked> Hintergrund (Unterlage) einschließen</label>
@@ -288,6 +316,9 @@
       <strong>Grundlage:</strong> RBSV 2020 (FGSV, „Richtlinien für Bemessungsfahrzeuge und Schleppkurven").
       Die Default-Maße sind repräsentativ und editierbar – <strong>keine zertifizierte RBSV-Schablone</strong>,
       Angaben ohne Gewähr, ersetzt keine geprüfte Befahrbarkeitsuntersuchung.
+      Der <strong>Routenplaner</strong> liefert einen fahrbaren, kollisionsfreien Vorschlag (starres, zweiachsiges
+      Modell) – kein Ersatz für die fachliche Prüfung. Der <strong>Mobilkran</strong> ist eine vereinfachte
+      starre Näherung (echte Mobilkrane sind mehrachsig mit Hinterachslenkung).
     </div>
   </div>
 
@@ -302,7 +333,9 @@
     { name: 'Pkw (Standard, RBSV-nah)',   length: 4.70,  width: 1.85, wheelbase: 2.70,  of: 0.90, or: 1.10, track: 1.60, wk: 5.85 },
     { name: 'Transporter / Sprinter',     length: 5.90,  width: 2.00, wheelbase: 3.665, of: 0.90, or: 1.335, track: 1.75, wk: 6.60 },
     { name: 'Rettungswagen (RTW)',        length: 5.90,  width: 2.20, wheelbase: 3.665, of: 0.95, or: 1.285, track: 1.80, wk: 6.90 },
+    { name: '7,5-Tonner (2-achsig)',      length: 6.70,  width: 2.35, wheelbase: 3.90,  of: 1.35, or: 1.45, track: 1.90, wk: 12.60 },
     { name: 'Lkw Solo (2-achsig)',        length: 8.00,  width: 2.55, wheelbase: 4.50,  of: 1.40, or: 2.10, track: 2.10, wk: 10.30 },
+    { name: 'Mobilkran (2-achsig, Näherung)', length: 11.00, width: 2.75, wheelbase: 5.40, of: 2.90, or: 2.70, track: 2.20, wk: 13.50 },
     { name: 'Müllfahrzeug (2-achsig)',    length: 9.30,  width: 2.50, wheelbase: 4.20,  of: 1.45, or: 3.65, track: 2.10, wk: 10.50 },
     { name: 'Feuerwehr HLF (2-achsig)',   length: 8.00,  width: 2.50, wheelbase: 4.30,  of: 1.40, or: 2.30, track: 2.10, wk: 10.50 },
     { name: 'Linienbus (12 m, 2-achsig)', length: 12.00, width: 2.55, wheelbase: 5.95,  of: 2.70, or: 3.35, track: 2.10, wk: 11.30 },
@@ -409,6 +442,12 @@
   let underlay = null;
   let ulDrag = null;                                   // Verschieben der Unterlage
   let calib = { active: false, pts: [], hover: null }; // Kalibrier-Klicks
+
+  // Routenplaner-Zustand
+  let startPose = null, goalPose = null; // {x,y,theta} Weltkoord.
+  let plannedPath = null;                // Array {x,y,theta,gear}
+  let poseDrag = null;                   // { which:'start'|'goal' } beim Ziehen der Ausrichtung
+  let planRun = null, playRun = null;    // laufende rAF-Handles
 
   // Fang: auf Raster (volle cm-Schritte) und/oder Winkelraster (rel. zum letzten Punkt)
   function snapPoint(p) {
@@ -589,9 +628,187 @@
     return { collision, points, minClear: isFinite(minClear) ? minClear : null };
   }
 
+  // ===========================================================================
+  // Routenplaner: Hybrid A* (nichtholonome Wegsuche) + Dubins-Analytik-Schuss
+  // Vor+zurück fahrbar; Rückwärts wird über Kosten minimiert. Nutzt geometry(),
+  // segInt/segSegDist gegen boundaries. Ergebnis = dichte Posenliste zum Abfahren.
+  // ===========================================================================
+
+  // Winkel-Normierung
+  function m2pi(x) { let v = x % (2 * Math.PI); if (v < 0) v += 2 * Math.PI; return v; }              // [0,2π)
+  function m2piS(x) { let v = x % (2 * Math.PI); if (v <= -Math.PI) v += 2 * Math.PI; else if (v > Math.PI) v -= 2 * Math.PI; return v; } // (-π,π]
+
+  // Min-Wenderadius (Hinterachsmitte) aus max. Lenkeinschlag
+  function turnRadius(v = veh) { return v.wheelbase / Math.tan(deltaMax(v)); }
+
+  // Reines Einspurmodell (ohne globalen state) – kleine ds → Euler ist genau genug
+  function integrate(st, steerAng, ds, v = veh) {
+    const th = st.theta + (ds / v.wheelbase) * Math.tan(steerAng);
+    return { x: st.x + ds * Math.cos(th), y: st.y + ds * Math.sin(th), theta: th };
+  }
+
+  // Kollision einer HYPOTHETISCHEN Pose gegen alle Begrenzungen (optional Sicherheitsabstand)
+  function collidesAt(st, clearance = 0, v = veh) {
+    if (!boundaries.length) return false;
+    const c = geometry(st, v).corners;
+    const edges = [[c.fl, c.fr], [c.fr, c.rr], [c.rr, c.rl], [c.rl, c.fl]];
+    for (const bnd of boundaries) {
+      for (let i = 0; i < bnd.length - 1; i++) {
+        const p = bnd[i], q = bnd[i + 1];
+        for (const [a, b] of edges) {
+          if (segInt(a, b, p, q)) return true;
+          if (clearance > 0 && segSegDist(a, b, p, q) < clearance) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // ---------- Dubins-Kurven (Einheitsradius, Start (0,0,0) → (x,y,phi)) ----------
+  // Für Heuristik + analytischen Schuss. Immer vorwärts → garantiert erreichbar.
+  function dubinsWords(x, y, phi) {
+    const d = Math.hypot(x, y), th = m2pi(Math.atan2(y, x));
+    const a = m2pi(-th), b = m2pi(phi - th);
+    const sa = Math.sin(a), sb = Math.sin(b), ca = Math.cos(a), cb = Math.cos(b), cab = Math.cos(a - b);
+    const words = [];
+    const add = (segs, len) => { if (segs.every(s => s[1] >= -1e-9)) words.push({ segs, len }); };
+    { const p2 = 2 + d * d - 2 * cab + 2 * d * (sa - sb); if (p2 >= 0) { const tmp = Math.atan2(cb - ca, d + sa - sb); const t = m2pi(-a + tmp), p = Math.sqrt(p2), q = m2pi(b - tmp); add([['L', t], ['S', p], ['L', q]], t + p + q); } }
+    { const p2 = 2 + d * d - 2 * cab + 2 * d * (sb - sa); if (p2 >= 0) { const tmp = Math.atan2(ca - cb, d - sa + sb); const t = m2pi(a - tmp), p = Math.sqrt(p2), q = m2pi(-b + tmp); add([['R', t], ['S', p], ['R', q]], t + p + q); } }
+    { const p2 = -2 + d * d + 2 * cab + 2 * d * (sa + sb); if (p2 >= 0) { const p = Math.sqrt(p2); const tmp = Math.atan2(-ca - cb, d + sa + sb) - Math.atan2(-2, p); const t = m2pi(-a + tmp), q = m2pi(-b + tmp); add([['L', t], ['S', p], ['R', q]], t + p + q); } }
+    { const p2 = -2 + d * d + 2 * cab - 2 * d * (sa + sb); if (p2 >= 0) { const p = Math.sqrt(p2); const tmp = Math.atan2(ca + cb, d - sa - sb) - Math.atan2(2, p); const t = m2pi(a - tmp), q = m2pi(b - tmp); add([['R', t], ['S', p], ['L', q]], t + p + q); } }
+    { const tmp = (6 - d * d + 2 * cab + 2 * d * (sa - sb)) / 8; if (Math.abs(tmp) <= 1) { const p = m2pi(2 * Math.PI - Math.acos(tmp)); const t = m2pi(a - Math.atan2(ca - cb, d - sa + sb) + m2pi(p) / 2); const q = m2pi(a - b - t + m2pi(p)); add([['R', t], ['L', p], ['R', q]], t + p + q); } }
+    { const tmp = (6 - d * d + 2 * cab + 2 * d * (sb - sa)) / 8; if (Math.abs(tmp) <= 1) { const p = m2pi(2 * Math.PI - Math.acos(tmp)); const t = m2pi(-a + Math.atan2(-ca + cb, d + sa - sb) + m2pi(p) / 2); const q = m2pi(m2pi(b) - a - t + m2pi(p)); add([['L', t], ['R', p], ['L', q]], t + p + q); } }
+    return words;
+  }
+  function dubinsBest(x, y, phi) { let best = null; for (const w of dubinsWords(x, y, phi)) if (!best || w.len < best.len) best = w; return best; }
+
+  // Dubins-Segmente (normiert, vorwärts) ab Startpose in Weltposen abtasten (Radius R, Schritt ds)
+  function interpDubins(start, segs, R, ds) {
+    const poses = [{ x: start.x, y: start.y, theta: start.theta, gear: 1 }];
+    let cur = { x: start.x, y: start.y, theta: start.theta };
+    for (const [type, lenNorm] of segs) {
+      const s = lenNorm * R; if (s < 1e-9) continue;
+      const n = Math.max(1, Math.ceil(s / ds)), step = s / n;
+      for (let i = 1; i <= n; i++) {
+        const l = step * i; let x, y, th;
+        if (type === 'S') { th = cur.theta; x = cur.x + l * Math.cos(th); y = cur.y + l * Math.sin(th); }
+        else if (type === 'L') { th = cur.theta + l / R; x = cur.x + R * (Math.sin(cur.theta + l / R) - Math.sin(cur.theta)); y = cur.y + R * (-Math.cos(cur.theta + l / R) + Math.cos(cur.theta)); }
+        else { th = cur.theta - l / R; x = cur.x + R * (Math.sin(cur.theta) - Math.sin(cur.theta - l / R)); y = cur.y + R * (Math.cos(cur.theta - l / R) - Math.cos(cur.theta)); }
+        poses.push({ x, y, theta: th, gear: 1 });
+      }
+      const last = poses[poses.length - 1]; cur = { x: last.x, y: last.y, theta: last.theta };
+    }
+    return poses;
+  }
+
+  // ---------- Binary Min-Heap (nach .f) ----------
+  class MinHeap {
+    constructor() { this.a = []; }
+    size() { return this.a.length; }
+    push(x) { const a = this.a; a.push(x); let i = a.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (a[p].f <= a[i].f) break; [a[p], a[i]] = [a[i], a[p]]; i = p; } }
+    pop() { const a = this.a, top = a[0], last = a.pop(); if (a.length) { a[0] = last; let i = 0; const n = a.length; for (;;) { let l = 2 * i + 1, r = 2 * i + 2, m = i; if (l < n && a[l].f < a[m].f) m = l; if (r < n && a[r].f < a[m].f) m = r; if (m === i) break; [a[m], a[i]] = [a[i], a[m]]; i = m; } } return top; }
+  }
+
+  // ---------- Hybrid A* Planer (schrittweise, damit die UI nicht einfriert) ----------
+  function makePlanner(start, goal, opts = {}) {
+    const v = opts.vehicle || veh;
+    const R = turnRadius(v), dmax = deltaMax(v);
+    const clearance = opts.clearance || 0;
+    const posTol = opts.posTol != null ? opts.posTol : 0.25;
+    const headTol = opts.ignoreHeading ? Math.PI : (opts.headTol != null ? opts.headTol : 5 * Math.PI / 180);
+    const CXY = 0.4, CTH = 2 * Math.PI / 72, MAXEXP = opts.maxExp || 60000;
+    const REV_W = 2.5, SWITCH_W = 1.5, STEER_W = 0.3, STEERD_W = 0.4;
+    const PRIM_LEN = Math.max(0.8, 1.6 * CXY), SUBSTEP = 0.2;
+    const STEERS = [-1, -0.5, 0, 0.5, 1], GEARS = [1, -1];
+    const nsub = Math.max(1, Math.round(PRIM_LEN / SUBSTEP));
+
+    const key = (x, y, th) => Math.round(x / CXY) + ',' + Math.round(y / CXY) + ',' + Math.round(m2piS(th) / CTH);
+    function hcost(x, y, th) {
+      const dx = goal.x - x, dy = goal.y - y;
+      const lx = (dx * Math.cos(th) + dy * Math.sin(th)) / R, ly = (-dx * Math.sin(th) + dy * Math.cos(th)) / R;
+      const db = dubinsBest(lx, ly, goal.theta - th);
+      const euc = Math.hypot(dx, dy);
+      return Math.max(euc, db ? db.len * R : euc);
+    }
+    const goalReached = (n) => Math.hypot(n.x - goal.x, n.y - goal.y) <= posTol && Math.abs(m2piS(n.theta - goal.theta)) <= headTol;
+    function tryShot(n) {
+      const dx = goal.x - n.x, dy = goal.y - n.y;
+      const lx = (dx * Math.cos(n.theta) + dy * Math.sin(n.theta)) / R, ly = (-dx * Math.sin(n.theta) + dy * Math.cos(n.theta)) / R;
+      const db = dubinsBest(lx, ly, goal.theta - n.theta); if (!db) return null;
+      const poses = interpDubins(n, db.segs, R, SUBSTEP);
+      for (let i = 1; i < poses.length; i++) if (collidesAt(poses[i], clearance, v)) return null;
+      return poses;
+    }
+    function reconstruct(n, shotPoses) {
+      const chain = []; let c = n; while (c) { chain.push(c); c = c.parent; } chain.reverse();
+      const out = [];
+      for (const node of chain) for (const p of node.poses) out.push(p);
+      if (shotPoses) { for (let i = 1; i < shotPoses.length; i++) out.push(shotPoses[i]); out.push({ x: goal.x, y: goal.y, theta: goal.theta, gear: shotPoses[shotPoses.length - 1].gear }); }
+      return out;
+    }
+
+    const heap = new MinHeap(), gscore = Object.create(null);
+    const startNode = { x: start.x, y: start.y, theta: start.theta, g: 0, gear: 1, steerFrac: 0, parent: null, poses: [{ x: start.x, y: start.y, theta: start.theta, gear: 1 }] };
+    startNode.f = hcost(start.x, start.y, start.theta);
+    heap.push(startNode); gscore[key(start.x, start.y, start.theta)] = 0;
+    let expansions = 0;
+
+    function step(budget) {
+      let done = 0;
+      while (heap.size() > 0 && done < budget && expansions < MAXEXP) {
+        const node = heap.pop(); done++; expansions++;
+        const shotInterval = Math.max(1, Math.floor(hcost(node.x, node.y, node.theta) / (3 * R)));
+        if (expansions % shotInterval === 0 || goalReached(node)) {
+          const sp = tryShot(node);
+          if (sp) return { status: 'found', path: reconstruct(node, sp), expansions };
+        }
+        if (goalReached(node)) return { status: 'found', path: reconstruct(node, null), expansions };
+        for (const sf of STEERS) {
+          const steerAng = sf * dmax;
+          for (const gear of GEARS) {
+            let st = { x: node.x, y: node.y, theta: node.theta }, ok = true; const poses = [];
+            const dstep = gear * (PRIM_LEN / nsub);
+            for (let i = 0; i < nsub; i++) { st = integrate(st, steerAng, dstep, v); if (collidesAt(st, clearance, v)) { ok = false; break; } poses.push({ x: st.x, y: st.y, theta: st.theta, gear }); }
+            if (!ok) continue;
+            let cost = PRIM_LEN; if (gear < 0) cost *= REV_W; if (gear !== node.gear) cost += SWITCH_W; cost += STEER_W * Math.abs(sf) + STEERD_W * Math.abs(sf - node.steerFrac);
+            const gNew = node.g + cost, k = key(st.x, st.y, st.theta);
+            if (gscore[k] !== undefined && gscore[k] <= gNew) continue;
+            gscore[k] = gNew;
+            const child = { x: st.x, y: st.y, theta: st.theta, g: gNew, gear, steerFrac: sf, parent: node, poses };
+            child.f = gNew + hcost(st.x, st.y, st.theta);
+            heap.push(child);
+          }
+        }
+      }
+      if (heap.size() === 0 || expansions >= MAXEXP) return { status: 'fail', expansions };
+      return { status: 'searching', expansions };
+    }
+    return { step, get expansions() { return expansions; }, maxExp: MAXEXP };
+  }
+
+  // Start-/Ziel-Geister + geplante Route zeichnen
+  function poseGhost(pose, color) {
+    if (!pose) return '';
+    const g = geometry(pose), c = g.corners;
+    const pts = [c.fl, c.fr, c.rr, c.rl].map(p => { const s = w2s(p); return s.x.toFixed(1) + ',' + s.y.toFixed(1); }).join(' ');
+    const back = w2s(g.C), tip = w2s(g.frontAxle);
+    return `<polygon points="${pts}" fill="${color}" fill-opacity="0.10" stroke="${color}" stroke-width="1.8" stroke-dasharray="5,4"/>`
+      + `<line x1="${back.x.toFixed(1)}" y1="${back.y.toFixed(1)}" x2="${tip.x.toFixed(1)}" y2="${tip.y.toFixed(1)}" stroke="${color}" stroke-width="1.8"/>`;
+  }
+  function planSvg() {
+    let out = '';
+    if (plannedPath && plannedPath.length > 1) {
+      const pts = plannedPath.map(p => { const s = w2s(p); return s.x.toFixed(1) + ',' + s.y.toFixed(1); }).join(' ');
+      out += `<polyline points="${pts}" fill="none" stroke="#7a5cff" stroke-width="2.5" stroke-opacity="0.9"/>`;
+      for (let i = 1; i < plannedPath.length; i++) if (plannedPath[i].gear !== plannedPath[i - 1].gear) { const s = w2s(plannedPath[i]); out += `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="4" fill="#7a5cff"/>`; }
+    }
+    out += poseGhost(startPose, '#1f9d5a') + poseGhost(goalPose, '#ff4f00');
+    return out;
+  }
+
   function render() {
     collisionState = computeCollision();
-    svg.innerHTML = gridSvg() + boundarySvg() + tracesSvg() + vehicleSvg() + collisionMarkersSvg() + calibSvg();
+    svg.innerHTML = gridSvg() + boundarySvg() + tracesSvg() + planSvg() + vehicleSvg() + collisionMarkersSvg() + calibSvg();
     // Readout Lenkung
     const dmax = deltaMax(veh);
     const degMax = dmax * 180 / Math.PI;
@@ -772,7 +989,9 @@
     mode = m;
     $('drawBtn').classList.toggle('active', m === 'draw');
     $('ulMove').classList.toggle('active', m === 'move');
-    svg.style.cursor = m === 'draw' ? 'crosshair' : m === 'move' ? 'move' : '';
+    $('plStart').classList.toggle('active', m === 'setStart');
+    $('plGoal').classList.toggle('active', m === 'setGoal');
+    svg.style.cursor = (m === 'draw' || m === 'setStart' || m === 'setGoal') ? 'crosshair' : m === 'move' ? 'move' : '';
   }
   $('drawBtn').addEventListener('click', () => {
     if (mode === 'draw') { finishDraw(); setMode('pan'); }
@@ -837,6 +1056,17 @@
       svg.setPointerCapture(e.pointerId);
       return;
     }
+    if (mode === 'setStart' || mode === 'setGoal') {
+      const wp = s2w(svgPt(e));
+      const prev = mode === 'setStart' ? startPose : goalPose;
+      const np = { x: wp.x, y: wp.y, theta: prev ? prev.theta : 0 };
+      if (mode === 'setStart') startPose = np; else goalPose = np;
+      poseDrag = { which: mode === 'setStart' ? 'start' : 'goal', anchor: wp };
+      plannedPath = null; $('plApply').disabled = true; $('plPlay').disabled = true;
+      svg.setPointerCapture(e.pointerId);
+      render();
+      return;
+    }
     panning = { p: svgPt(e), panX: view.panX, panY: view.panY };
     svg.setPointerCapture(e.pointerId);
   });
@@ -849,14 +1079,22 @@
       repaintUnderlay(); render();
       return;
     }
+    if (poseDrag) {
+      const wp = s2w(svgPt(e));
+      const pose = poseDrag.which === 'start' ? startPose : goalPose;
+      const dx = wp.x - poseDrag.anchor.x, dy = wp.y - poseDrag.anchor.y;
+      if (Math.hypot(dx, dy) > 0.15) pose.theta = Math.atan2(dy, dx);
+      render();
+      return;
+    }
     if (!panning) return;
     const p = svgPt(e);
     view.panX = panning.panX + (p.x - panning.p.x);
     view.panY = panning.panY + (p.y - panning.p.y);
     repaintUnderlay(); repaintGhost(); render();
   });
-  svg.addEventListener('pointerup', (e) => { panning = null; ulDrag = null; });
-  svg.addEventListener('pointercancel', () => { panning = null; ulDrag = null; });
+  svg.addEventListener('pointerup', (e) => { panning = null; ulDrag = null; if (poseDrag) { poseDrag = null; setMode('pan'); render(); } });
+  svg.addEventListener('pointercancel', () => { panning = null; ulDrag = null; if (poseDrag) { poseDrag = null; setMode('pan'); render(); } });
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = svgPt(e); const wpt = s2w(p);
@@ -1198,6 +1436,7 @@
     for (const k of traceKeys) { if (wheelTrace[k].length) pts.push(...wheelTrace[k]); if (cornerTrace[k].length) pts.push(...cornerTrace[k]); }
     for (const b of boundaries) pts.push(...b);
     const g = geometry(); pts.push(g.corners.fl, g.corners.fr, g.corners.rl, g.corners.rr);
+    if (plannedPath && plannedPath.length) pts.push(...plannedPath);
     if (includeBg && underlay) pts.push(...underlayWorldPoints());
     if (!pts.length) return null;
     let mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
@@ -1236,6 +1475,7 @@
       { name: 'Fahrzeug',     color: 3 },
       { name: 'Raster',       color: 9 },
       { name: 'Hintergrund',  color: 7 },
+      { name: 'Route',        color: 6 },
       { name: 'Massstab_1m',  color: 30 },
     ];
     let s = '';
@@ -1258,6 +1498,7 @@
     if (opts.vehicle) { const g = geometry(); poly([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl], 'Fahrzeug', true); }
     if (opts.grid) for (const seg of gridLinesWorld(opts.bounds)) poly(seg, 'Raster', false);
     if (opts.bg && underlay && underlay.type === 'dxf') for (const seg of underlayDxfWorld()) poly(seg, 'Hintergrund', false);
+    if (plannedPath && plannedPath.length > 1) poly(plannedPath, 'Route', false);
     // 1-m-Referenzstrecke (Sanity-Check: im CAD nachmessen → muss exakt 1,000 m sein)
     const sb = scaleBarWorld(opts.bounds);
     poly(sb.line, 'Massstab_1m', false); poly(sb.tick0, 'Massstab_1m', false); poly(sb.tick1, 'Massstab_1m', false);
@@ -1321,6 +1562,7 @@
     }
     if (opts.grid) for (const seg of gridLinesWorld(b)) el += `<path d="${d(seg)}" fill="none" stroke="#e2e2e0" stroke-width="0.1"/>`;
     for (const bnd of boundaries) if (bnd.length > 1) el += `<path d="${d(bnd)}" fill="none" stroke="#1f6bd6" stroke-width="0.4"/>`;
+    if (plannedPath && plannedPath.length > 1) el += `<path d="${d(plannedPath)}" fill="none" stroke="#7a5cff" stroke-width="0.35" stroke-dasharray="1.5,1"/>`;
     for (const k of traceKeys) if (wheelTrace[k].length > 1) el += `<path d="${d(wheelTrace[k])}" fill="none" stroke="#777777" stroke-width="0.2" stroke-dasharray="1,1"/>`;
     for (const k of traceKeys) if (cornerTrace[k].length > 1) el += `<path d="${d(cornerTrace[k])}" fill="none" stroke="#e5231b" stroke-width="0.35"/>`;
     if (opts.vehicle) { const g = geometry(); el += `<path d="${d([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl])} Z" fill="none" stroke="#1f9d5a" stroke-width="0.35"/>`; }
@@ -1356,6 +1598,74 @@
       + '<div class="sheet">' + svg + '</div></body></html>');
     win.document.close();
     $('exStatus').textContent = 'Druckansicht geöffnet (' + scaleTxt + ').';
+  });
+
+  // ===========================================================================
+  // Routenplaner – UI-Verdrahtung
+  // ===========================================================================
+  function countReverse(path) { let c = 0; for (let i = 1; i < path.length; i++) if (path[i].gear < 0 && path[i - 1].gear >= 0) c++; return c; }
+  function pathLenM(path) { let L = 0; for (let i = 1; i < path.length; i++) L += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y); return L; }
+  function setPlanBusy(b) { $('plGo').textContent = b ? '■ Abbrechen' : '▶ Route berechnen'; }
+
+  $('plStart').addEventListener('click', () => { setMode(mode === 'setStart' ? 'pan' : 'setStart'); render(); });
+  $('plGoal').addEventListener('click', () => { setMode(mode === 'setGoal' ? 'pan' : 'setGoal'); render(); });
+  $('plReset').addEventListener('click', () => {
+    if (planRun) { cancelAnimationFrame(planRun.raf); planRun = null; setPlanBusy(false); }
+    if (playRun) { cancelAnimationFrame(playRun); playRun = null; }
+    startPose = null; goalPose = null; plannedPath = null;
+    $('plApply').disabled = true; $('plPlay').disabled = true; $('plStatus').textContent = '';
+    setMode('pan'); render();
+  });
+
+  $('plGo').addEventListener('click', () => {
+    if (planRun) { cancelAnimationFrame(planRun.raf); planRun = null; setPlanBusy(false); $('plStatus').textContent = 'Abgebrochen.'; return; }
+    if (!startPose || !goalPose) { $('plStatus').textContent = 'Bitte zuerst Start und Ziel setzen.'; return; }
+    const clearance = Math.max(0, parseFloat($('plClearance').value) || 0);
+    if (collidesAt(startPose, clearance)) { $('plStatus').textContent = 'Startpose kollidiert mit einer Begrenzung – bitte versetzen.'; return; }
+    if (collidesAt(goalPose, clearance)) { $('plStatus').textContent = 'Zielpose kollidiert mit einer Begrenzung – bitte versetzen.'; return; }
+    const ignoreHeading = $('plIgnoreHead').checked;
+    const planner = makePlanner(startPose, goalPose, { vehicle: veh, clearance, ignoreHeading });
+    plannedPath = null; $('plApply').disabled = true; $('plPlay').disabled = true;
+    setPlanBusy(true);
+    const t0 = performance.now();
+    const loop = () => {
+      const r = planner.step(1500);
+      if (r.status === 'searching') {
+        $('plStatus').textContent = 'Suche … ' + Math.min(99, Math.round(r.expansions / planner.maxExp * 100)) + ' %';
+        planRun.raf = requestAnimationFrame(loop); return;
+      }
+      planRun = null; setPlanBusy(false);
+      if (r.status === 'found') {
+        plannedPath = r.path;
+        $('plStatus').textContent = `Route gefunden: ${pathLenM(r.path).toFixed(1)} m, ${countReverse(r.path)} Rückwärts-Abschnitt(e), ${((performance.now() - t0) / 1000).toFixed(1)} s.`;
+        $('plApply').disabled = false; $('plPlay').disabled = false;
+      } else {
+        $('plStatus').textContent = 'Keine kollisionsfreie Route im Rechenbudget gefunden – Sicherheitsabstand verringern, Start/Ziel anpassen oder Begrenzungen prüfen.';
+      }
+      render();
+    };
+    planRun = { raf: requestAnimationFrame(loop) };
+  });
+
+  function applyPathAsDrive(path) {
+    resetTraces();
+    for (const p of path) { state = { x: p.x, y: p.y, theta: p.theta }; record(); }
+    const last = path[path.length - 1]; state = { x: last.x, y: last.y, theta: last.theta }; steer = 0;
+    render();
+  }
+  $('plApply').addEventListener('click', () => { if (plannedPath) applyPathAsDrive(plannedPath); });
+
+  $('plPlay').addEventListener('click', () => {
+    if (!plannedPath) return;
+    if (playRun) { cancelAnimationFrame(playRun); playRun = null; }
+    resetTraces();
+    let i = 0; const path = plannedPath, chunk = Math.max(1, Math.round(path.length / 180));
+    const stepA = () => {
+      for (let k = 0; k < chunk && i < path.length; k++, i++) { const p = path[i]; state = { x: p.x, y: p.y, theta: p.theta }; record(); }
+      render();
+      if (i < path.length) playRun = requestAnimationFrame(stepA); else { playRun = null; steer = 0; }
+    };
+    playRun = requestAnimationFrame(stepA);
   });
 
   // Start
