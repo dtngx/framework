@@ -100,6 +100,8 @@
     .row { display: flex; gap: 8px; flex-wrap: wrap; }
     .row .btn { flex: 1; text-align: center; }
     .hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    label.chk { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); margin-bottom: 6px; cursor: pointer; }
+    label.chk input { width: auto; }
 
     .norms { font-size: 11px; color: var(--muted); margin: 10px 2px 0; }
     .norms strong { color: var(--text); }
@@ -111,13 +113,13 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.5</span>
+      <span class="ver">v0.6</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
-      Kern-Version <span class="badge">Work in Progress</span> – Fahren, Spuren, überstrichene Fläche,
-      Begrenzungen mit Snapping sowie Lageplan-Import (Bild, PDF, DXF) mit maßstäblicher Kalibrierung.
-      DXF-/PDF-Export folgt als nächster Schritt.
+      Fahren, Spuren, überstrichene Fläche, Begrenzungen mit Snapping, Lageplan-Import
+      (Bild, PDF, DXF) mit maßstäblicher Kalibrierung sowie Export nach DXF (getrennte Layer)
+      und Vektor-PDF.
     </p>
 
     <div class="layout">
@@ -250,6 +252,32 @@
             <button class="btn" id="clearB">Alle löschen</button>
           </div>
           <p class="hint">Zeichnen aktivieren, dann klicken für Eckpunkte (Bordstein, Hindernis, Grundstücksgrenze). <kbd>Enter</kbd> oder „Fertig" schließt den Zug ab, <kbd>Esc</kbd> verwirft. Kollision/​min. Abstand werden live links oben angezeigt.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Export</h2>
+          <label class="chk"><input type="checkbox" id="exGrid"> Raster einschließen</label>
+          <label class="chk"><input type="checkbox" id="exBg" checked> Hintergrund (Unterlage) einschließen</label>
+          <label class="f" style="margin:8px 0 0;">PDF-Maßstab
+            <select id="pdfScale">
+              <option value="0">an Seite anpassen</option>
+              <option value="50">1:50</option>
+              <option value="100" selected>1:100</option>
+              <option value="200">1:200</option>
+              <option value="250">1:250</option>
+              <option value="500">1:500</option>
+            </select>
+          </label>
+          <div class="row" style="margin-top:10px;">
+            <button class="btn" id="exDxf">⬇ DXF</button>
+            <button class="btn" id="exPdf">⬇ PDF / Druck</button>
+          </div>
+          <p class="hint" id="exStatus" style="min-height:0;"></p>
+          <p class="hint"><strong>Reifenspuren</strong> (grau), <strong>Hüllkurve</strong>/Kantenspuren (rot) und
+            <strong>Begrenzungen</strong> (blau) gehen auf getrennte Layer/Farben. DXF liest jedes CAD
+            (dort „Speichern unter" → DWG). PDF öffnet die Druckansicht – für maßstabsgetreue Ausgabe im
+            Druckdialog <strong>100 % / „Tatsächliche Größe"</strong> wählen. Raster-Hintergründe (Bild/PDF)
+            erscheinen nur im PDF, nicht im DXF.</p>
         </div>
           </div><!-- overlay-body -->
         </div><!-- overlay -->
@@ -1154,6 +1182,154 @@
   $('ovHead').addEventListener('click', () => {
     const collapsed = $('overlay').classList.toggle('collapsed');
     $('ovChev').textContent = collapsed ? '▸ zeigen' : '▾ ausblenden';
+  });
+
+  // ===========================================================================
+  // Export (DXF + Vektor-PDF)
+  // ===========================================================================
+  // Weltpunkte der DXF-Unterlage in aktueller Lage
+  function underlayDxfWorld() {
+    return underlay.segs.map(seg => seg.map(p => ({ x: underlay.o.x + p.x * underlay.scale, y: underlay.o.y + p.y * underlay.scale })));
+  }
+
+  // Bounding-Box aller zu exportierenden Inhalte (Welt, Meter)
+  function contentBounds(includeBg) {
+    const pts = [];
+    for (const k of traceKeys) { if (wheelTrace[k].length) pts.push(...wheelTrace[k]); if (cornerTrace[k].length) pts.push(...cornerTrace[k]); }
+    for (const b of boundaries) pts.push(...b);
+    const g = geometry(); pts.push(g.corners.fl, g.corners.fr, g.corners.rl, g.corners.rr);
+    if (includeBg && underlay) pts.push(...underlayWorldPoints());
+    if (!pts.length) return null;
+    let mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+    for (const p of pts) { mnx = Math.min(mnx, p.x); mxx = Math.max(mxx, p.x); mny = Math.min(mny, p.y); mxy = Math.max(mxy, p.y); }
+    return { mnx, mxx, mny, mxy };
+  }
+
+  // Rasterlinien (Weltkoord.) innerhalb der BBox – gleiche Schrittweite wie Anzeige
+  function gridLinesWorld(b) {
+    const steps = [1, 2, 5, 10, 20, 50, 100];
+    const step = steps.find(s => s * view.scale >= 26) || 100;
+    const lines = [];
+    const x0 = Math.floor(b.mnx / step) * step, y0 = Math.floor(b.mny / step) * step;
+    for (let x = x0; x <= b.mxx + 1e-9; x += step) lines.push([{ x, y: b.mny }, { x, y: b.mxy }]);
+    for (let y = y0; y <= b.mxy + 1e-9; y += step) lines.push([{ x: b.mnx, y }, { x: b.mxx, y }]);
+    return lines;
+  }
+
+  // ---------- DXF (R12/AC1009 – maximal kompatibel, Meter) ----------
+  function buildDXF(opts) {
+    const layers = [
+      { name: 'Reifenspuren', color: 8 },
+      { name: 'Huellkurve',   color: 1 },
+      { name: 'Begrenzung',   color: 5 },
+      { name: 'Fahrzeug',     color: 3 },
+      { name: 'Raster',       color: 9 },
+      { name: 'Hintergrund',  color: 7 },
+    ];
+    let s = '';
+    const w = (code, val) => { s += code + '\n' + val + '\n'; };
+    w(0, 'SECTION'); w(2, 'HEADER'); w(9, '$ACADVER'); w(1, 'AC1009'); w(0, 'ENDSEC');
+    w(0, 'SECTION'); w(2, 'TABLES'); w(0, 'TABLE'); w(2, 'LAYER'); w(70, layers.length);
+    for (const L of layers) { w(0, 'LAYER'); w(2, L.name); w(70, 0); w(62, L.color); w(6, 'CONTINUOUS'); }
+    w(0, 'ENDTAB'); w(0, 'ENDSEC');
+    w(0, 'SECTION'); w(2, 'ENTITIES');
+    const poly = (pts, layer, closed) => {
+      if (pts.length < 2) return;
+      w(0, 'POLYLINE'); w(8, layer); w(66, 1); w(70, closed ? 1 : 0);
+      w(10, '0.0'); w(20, '0.0'); w(30, '0.0');
+      for (const p of pts) { w(0, 'VERTEX'); w(8, layer); w(10, p.x.toFixed(4)); w(20, p.y.toFixed(4)); w(30, '0.0'); }
+      w(0, 'SEQEND'); w(8, layer);
+    };
+    for (const k of traceKeys) if (wheelTrace[k].length > 1) poly(wheelTrace[k], 'Reifenspuren', false);
+    for (const k of traceKeys) if (cornerTrace[k].length > 1) poly(cornerTrace[k], 'Huellkurve', false);
+    for (const b of boundaries) poly(b, 'Begrenzung', false);
+    if (opts.vehicle) { const g = geometry(); poly([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl], 'Fahrzeug', true); }
+    if (opts.grid) for (const seg of gridLinesWorld(opts.bounds)) poly(seg, 'Raster', false);
+    if (opts.bg && underlay && underlay.type === 'dxf') for (const seg of underlayDxfWorld()) poly(seg, 'Hintergrund', false);
+    w(0, 'ENDSEC'); w(0, 'EOF');
+    return s;
+  }
+
+  function downloadBlob(filename, data, mime) {
+    const blob = new Blob([data], { type: mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  $('exDxf').addEventListener('click', () => {
+    const bg = $('exBg').checked, grid = $('exGrid').checked;
+    const bounds = contentBounds(bg);
+    if (!bounds) { $('exStatus').textContent = 'Nichts zu exportieren – erst fahren oder Begrenzungen/Unterlage laden.'; return; }
+    const dxf = buildDXF({ grid, bg, vehicle: true, bounds });
+    downloadBlob('schleppkurve.dxf', dxf, 'application/dxf');
+    $('exStatus').textContent = (bg && underlay && underlay.type === 'image')
+      ? 'DXF exportiert. Hinweis: Raster-Hintergrund nur im PDF enthalten.'
+      : 'DXF exportiert.';
+  });
+
+  // ---------- Vektor-PDF via eigenständigem SVG + Druckdialog ----------
+  function underlayDataURL() {
+    const u = underlay;
+    if (u.img && u.img.tagName === 'CANVAS') return u.img.toDataURL('image/png');
+    const c = document.createElement('canvas'); c.width = u.iw; c.height = u.ih;
+    c.getContext('2d').drawImage(u.img, 0, 0);
+    return c.toDataURL('image/png');
+  }
+
+  function buildExportSVG(opts) {
+    const b = opts.bounds, margin = 0.5;
+    const mnx = b.mnx - margin, mxx = b.mxx + margin, mny = b.mny - margin, mxy = b.mxy + margin;
+    const wM = Math.max(mxx - mnx, 0.001), hM = Math.max(mxy - mny, 0.001);
+    const m = opts.scaleDenom > 0 ? 1000 / opts.scaleDenom : Math.min(277 / wM, 190 / hM); // mm pro Meter
+    const Wmm = wM * m, Hmm = hM * m;
+    const X = (p) => ((p.x - mnx) * m).toFixed(2);
+    const Y = (p) => ((mxy - p.y) * m).toFixed(2);
+    const d = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + X(p) + ' ' + Y(p)).join(' ');
+    let el = `<rect x="0" y="0" width="${Wmm.toFixed(2)}" height="${Hmm.toFixed(2)}" fill="#ffffff"/>`;
+    // Unterlage
+    if (opts.bg && underlay) {
+      if (underlay.type === 'image') {
+        const u = underlay, s = u.scale, cr = Math.cos(u.rot), sr = Math.sin(u.rot), k = m * s;
+        const a = k * cr, bb = -k * sr, c = k * sr, dd = k * cr;
+        const e = m * (u.o.x - mnx) - k * cr * u.iw / 2 - k * sr * u.ih / 2;
+        const f = m * (mxy - u.o.y) + k * sr * u.iw / 2 - k * cr * u.ih / 2;
+        el += `<image href="${underlayDataURL()}" width="${u.iw}" height="${u.ih}" opacity="${u.opacity}" transform="matrix(${a},${bb},${c},${dd},${e},${f})"/>`;
+      } else {
+        for (const seg of underlayDxfWorld()) el += `<path d="${d(seg)}" fill="none" stroke="#999999" stroke-width="0.2"/>`;
+      }
+    }
+    if (opts.grid) for (const seg of gridLinesWorld(b)) el += `<path d="${d(seg)}" fill="none" stroke="#e2e2e0" stroke-width="0.1"/>`;
+    for (const bnd of boundaries) if (bnd.length > 1) el += `<path d="${d(bnd)}" fill="none" stroke="#1f6bd6" stroke-width="0.4"/>`;
+    for (const k of traceKeys) if (wheelTrace[k].length > 1) el += `<path d="${d(wheelTrace[k])}" fill="none" stroke="#777777" stroke-width="0.2" stroke-dasharray="1,1"/>`;
+    for (const k of traceKeys) if (cornerTrace[k].length > 1) el += `<path d="${d(cornerTrace[k])}" fill="none" stroke="#e5231b" stroke-width="0.35"/>`;
+    if (opts.vehicle) { const g = geometry(); el += `<path d="${d([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl])} Z" fill="none" stroke="#1f9d5a" stroke-width="0.35"/>`; }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Wmm.toFixed(2)}mm" height="${Hmm.toFixed(2)}mm" viewBox="0 0 ${Wmm.toFixed(2)} ${Hmm.toFixed(2)}">${el}</svg>`;
+    return { svg, Wmm, Hmm };
+  }
+
+  $('exPdf').addEventListener('click', () => {
+    const bg = $('exBg').checked, grid = $('exGrid').checked;
+    const bounds = contentBounds(bg);
+    if (!bounds) { $('exStatus').textContent = 'Nichts zu exportieren – erst fahren oder Begrenzungen/Unterlage laden.'; return; }
+    const denom = parseInt($('pdfScale').value, 10);
+    const { svg, Wmm, Hmm } = buildExportSVG({ grid, bg, vehicle: true, bounds, scaleDenom: denom });
+    const scaleTxt = denom > 0 ? ('1:' + denom) : 'an Seite angepasst';
+    const win = window.open('', '_blank');
+    if (!win) { $('exStatus').textContent = 'Pop-up blockiert – bitte Pop-ups erlauben und erneut versuchen.'; return; }
+    win.document.write('<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Schleppkurve – Export ' + scaleTxt + '</title>'
+      + '<style>@page{size:auto;margin:8mm;}body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}'
+      + '.bar{padding:10px 14px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #ddd;flex-wrap:wrap;}'
+      + '.bar button{font:inherit;padding:7px 14px;cursor:pointer;border:1px solid #ff4f00;background:#ff4f00;color:#fff;border-radius:6px;}'
+      + '.meta{color:#555;font-size:13px;}.sheet{padding:14px;}svg{border:1px solid #eee;}'
+      + '@media print{.bar{display:none;}.sheet{padding:0;}svg{border:none;}}</style></head><body>'
+      + '<div class="bar"><button onclick="window.print()">Drucken / Als PDF speichern</button>'
+      + '<span class="meta">Maßstab ' + scaleTxt + ' · Blatt ' + Wmm.toFixed(0) + '×' + Hmm.toFixed(0) + ' mm · '
+      + 'Reifenspuren grau · Hüllkurve rot · Begrenzung blau · für Maßstabstreue im Druckdialog 100 % wählen</span></div>'
+      + '<div class="sheet">' + svg + '</div></body></html>');
+    win.document.close();
+    $('exStatus').textContent = 'Druckansicht geöffnet (' + scaleTxt + ').';
   });
 
   // Start
