@@ -89,16 +89,18 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.4</span>
+      <span class="ver">v0.5</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
-      Kern-Version <span class="badge">Work in Progress</span> – Fahren, Spuren, überstrichene Fläche
-      und Begrenzungen mit Snapping. DXF-/Bild-Import und DXF-/PDF-Export folgen als nächste Schritte.
+      Kern-Version <span class="badge">Work in Progress</span> – Fahren, Spuren, überstrichene Fläche,
+      Begrenzungen mit Snapping sowie Lageplan-Import (Bild, PDF, DXF) mit maßstäblicher Kalibrierung.
+      DXF-/PDF-Export folgt als nächster Schritt.
     </p>
 
     <div class="layout">
       <div class="stage" id="stage">
+        <canvas id="under" width="1000" height="640"></canvas>
         <canvas id="ghost" width="1000" height="640"></canvas>
         <svg id="svg" viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="readout" id="readout"></div>
@@ -148,6 +150,45 @@
             <button class="btn" id="center">Fahrzeug zentrieren</button>
           </div>
           <p class="hint">Vor/Zurück gedrückt halten oder Pfeiltasten: <kbd>↑</kbd><kbd>↓</kbd> fahren, <kbd>←</kbd><kbd>→</kbd> lenken. Ansicht: ziehen = verschieben, Mausrad = zoomen.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Lageplan (Unterlage)</h2>
+          <div class="row">
+            <button class="btn" id="btnImg">🖼 Bild / PDF …</button>
+            <button class="btn" id="btnDxf">📐 DXF …</button>
+          </div>
+          <label class="f" style="margin-top:8px; margin-bottom:0;">DXF-Einheit
+            <select id="dxfUnit">
+              <option value="mm">Millimeter</option>
+              <option value="cm">Zentimeter</option>
+              <option value="m" selected>Meter</option>
+            </select>
+          </label>
+          <input type="file" id="fileImg" accept="image/*,application/pdf" hidden>
+          <input type="file" id="fileDxf" accept=".dxf,.DXF" hidden>
+
+          <div id="ulCtrls" hidden>
+            <p class="hint" id="ulInfo" style="margin:10px 0 6px; color:var(--text);"></p>
+            <label class="f" style="margin-bottom:6px;">Deckkraft: <span id="ulOpacityLbl">60 %</span>
+              <input type="range" id="ulOpacity" min="10" max="100" step="5" value="60">
+            </label>
+            <label class="f" style="margin-bottom:8px;">Drehung: <span id="ulRotLbl">0°</span>
+              <input type="range" id="ulRot" min="-180" max="180" step="0.5" value="0">
+            </label>
+            <div class="row">
+              <button class="btn" id="ulMove">✋ Verschieben</button>
+              <button class="btn" id="ulCal">📏 Kalibrieren</button>
+            </div>
+            <div class="row" style="margin-top:8px;">
+              <button class="btn" id="ulRemove">Entfernen</button>
+            </div>
+          </div>
+          <p class="hint" id="ulStatus" style="margin-top:8px; min-height:0;"></p>
+          <p class="hint">Bild/PDF oder DXF als Hintergrund laden. <strong>Kalibrieren</strong>:
+            zwei Punkte bekannten Abstands anklicken und die reale Länge eingeben – die Unterlage
+            wird maßstäblich skaliert. <strong>Verschieben</strong> positioniert sie. Danach echte
+            Begrenzungslinien darüber zeichnen.</p>
         </div>
 
         <div class="panel">
@@ -262,6 +303,8 @@
   const svg = document.getElementById('svg');
   const ghost = document.getElementById('ghost');
   const gctx = ghost.getContext('2d');
+  const underCanvas = document.getElementById('under');
+  const uctx = underCanvas.getContext('2d');
   const readout = document.getElementById('readout');
 
   // Aufgezeichnete Spuren
@@ -279,6 +322,13 @@
   let collisionState = { collision: false, points: [], minClear: null };
   let gridSnap = 0.05;         // m, 0 = aus
   let angleSnap = 0;           // rad, 0 = aus
+
+  // Lageplan-Unterlage (Bild/PDF-Raster oder DXF-Vektor)
+  //  image: { type:'image', img, iw, ih, o:{x,y}(Weltkoord. Bildmitte), scale(m/px), rot(rad), opacity }
+  //  dxf:   { type:'dxf', segs:[[{x,y}...]](Meter), o:{x,y}(Offset Welt), scale(Faktor), opacity }
+  let underlay = null;
+  let ulDrag = null;                                   // Verschieben der Unterlage
+  let calib = { active: false, pts: [], hover: null }; // Kalibrier-Klicks
 
   // Fang: auf Raster (volle cm-Schritte) und/oder Winkelraster (rel. zum letzten Punkt)
   function snapPoint(p) {
@@ -461,7 +511,7 @@
 
   function render() {
     collisionState = computeCollision();
-    svg.innerHTML = gridSvg() + boundarySvg() + tracesSvg() + vehicleSvg() + collisionMarkersSvg();
+    svg.innerHTML = gridSvg() + boundarySvg() + tracesSvg() + vehicleSvg() + collisionMarkersSvg() + calibSvg();
     // Readout Lenkung
     const dmax = deltaMax(veh);
     const degMax = dmax * 180 / Math.PI;
@@ -471,7 +521,11 @@
     readout.textContent = `Lenkung ${(steer * 180 / Math.PI).toFixed(1)}° (max ±${degMax.toFixed(1)}°) · ${radiusTxt}`;
     // Readout Kollision/Abstand
     const cs = document.getElementById('collstat');
-    if (mode === 'draw' && currentDraw && currentDraw.length && mouseWorld) {
+    if (calib.active && calib.pts.length && (calib.hover || calib.pts[1])) {
+      const a = calib.pts[0], b = calib.pts[1] || calib.hover;
+      cs.textContent = `Kalibrieren: ${Math.hypot(b.x - a.x, b.y - a.y).toFixed(3)} m`;
+      cs.style.color = cssVar('--accent');
+    } else if (mode === 'draw' && currentDraw && currentDraw.length && mouseWorld) {
       const last = currentDraw[currentDraw.length - 1];
       const len = Math.hypot(mouseWorld.x - last.x, mouseWorld.y - last.y);
       let ang = Math.atan2(mouseWorld.y - last.y, mouseWorld.x - last.x) * 180 / Math.PI;
@@ -628,11 +682,16 @@
 
   // Begrenzungen zeichnen
   function finishDraw() { if (currentDraw && currentDraw.length >= 2) boundaries.push(currentDraw); currentDraw = null; mouseWorld = null; render(); }
+  // Zentrale Modus-Umschaltung: 'pan' | 'draw' | 'move' (Unterlage verschieben)
+  function setMode(m) {
+    mode = m;
+    $('drawBtn').classList.toggle('active', m === 'draw');
+    $('ulMove').classList.toggle('active', m === 'move');
+    svg.style.cursor = m === 'draw' ? 'crosshair' : m === 'move' ? 'move' : '';
+  }
   $('drawBtn').addEventListener('click', () => {
-    mode = mode === 'draw' ? 'pan' : 'draw';
-    $('drawBtn').classList.toggle('active', mode === 'draw');
-    svg.style.cursor = mode === 'draw' ? 'crosshair' : '';
-    if (mode !== 'draw') finishDraw();
+    if (mode === 'draw') { finishDraw(); setMode('pan'); }
+    else setMode('draw');
     mouseWorld = null; render();
   });
   $('undoPt').addEventListener('click', () => { if (currentDraw && currentDraw.length) { currentDraw.pop(); render(); } });
@@ -644,18 +703,20 @@
   window.addEventListener('keydown', (e) => {
     const ae = document.activeElement;
     if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
-    if (e.key === 'Enter' && mode === 'draw') { e.preventDefault(); finishDraw(); }
+    if (e.key === 'Escape' && calib.active) { cancelCalibration(); }
+    else if (e.key === 'Enter' && mode === 'draw') { e.preventDefault(); finishDraw(); }
     else if (e.key === 'Escape' && currentDraw) { currentDraw = null; mouseWorld = null; render(); }
   });
 
   $('reset').addEventListener('click', () => { state = { x: 0, y: 0, theta: 0 }; resetTraces(); render(); });
-  $('center').addEventListener('click', () => { const s = w2s(state); view.panX += VBW / 2 - s.x; view.panY += VBH / 2 - s.y; repaintGhost(); render(); });
+  $('center').addEventListener('click', () => { const s = w2s(state); view.panX += VBW / 2 - s.x; view.panY += VBH / 2 - s.y; repaintUnderlay(); repaintGhost(); render(); });
   $('fit').addEventListener('click', fitView);
 
   function fitView() {
     const pts = [];
     for (const k of traceKeys) { pts.push(...cornerTrace[k]); }
     for (const b of boundaries) pts.push(...b);
+    pts.push(...underlayWorldPoints());
     const g = geometry(); pts.push(g.corners.fl, g.corners.fr, g.corners.rl, g.corners.rr);
     if (pts.length === 0) return;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -666,32 +727,51 @@
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     view.panX = VBW / 2 - cx * view.scale;
     view.panY = VBH / 2 + cy * view.scale;
-    repaintGhost(); render();
+    repaintUnderlay(); repaintGhost(); render();
   }
 
   // Pan (ziehen) + Zoom (Rad)
   let panning = null;
   function svgPt(e) { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * VBW, y: (e.clientY - r.top) / r.height * VBH }; }
   svg.addEventListener('pointerdown', (e) => {
+    // Kalibrieren hat Vorrang und fängt exakt (ohne Raster)
+    if (calib.active) {
+      calib.pts.push(s2w(svgPt(e)));
+      if (calib.pts.length >= 2) finishCalibration();
+      render();
+      return;
+    }
     if (mode === 'draw') {
       if (!currentDraw) currentDraw = [];
       currentDraw.push(snapPoint(s2w(svgPt(e))));
       render();
       return;
     }
+    if (mode === 'move' && underlay) {
+      ulDrag = { start: s2w(svgPt(e)), o0: { ...underlay.o } };
+      svg.setPointerCapture(e.pointerId);
+      return;
+    }
     panning = { p: svgPt(e), panX: view.panX, panY: view.panY };
     svg.setPointerCapture(e.pointerId);
   });
   svg.addEventListener('pointermove', (e) => {
+    if (calib.active) { if (calib.pts.length) { calib.hover = s2w(svgPt(e)); render(); } return; }
     if (mode === 'draw') { if (currentDraw) { mouseWorld = snapPoint(s2w(svgPt(e))); render(); } return; }
+    if (ulDrag && underlay) {
+      const w = s2w(svgPt(e));
+      underlay.o = { x: ulDrag.o0.x + (w.x - ulDrag.start.x), y: ulDrag.o0.y + (w.y - ulDrag.start.y) };
+      repaintUnderlay(); render();
+      return;
+    }
     if (!panning) return;
     const p = svgPt(e);
     view.panX = panning.panX + (p.x - panning.p.x);
     view.panY = panning.panY + (p.y - panning.p.y);
-    repaintGhost(); render();
+    repaintUnderlay(); repaintGhost(); render();
   });
-  svg.addEventListener('pointerup', (e) => { panning = null; });
-  svg.addEventListener('pointercancel', () => { panning = null; });
+  svg.addEventListener('pointerup', (e) => { panning = null; ulDrag = null; });
+  svg.addEventListener('pointercancel', () => { panning = null; ulDrag = null; });
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = svgPt(e); const wpt = s2w(p);
@@ -700,10 +780,318 @@
     // Zoom um Cursor: Welt-Punkt unter Cursor halten
     view.panX = p.x - wpt.x * view.scale;
     view.panY = p.y + wpt.y * view.scale;
-    repaintGhost(); render();
+    repaintUnderlay(); repaintGhost(); render();
   }, { passive: false });
 
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { repaintGhost(); render(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { repaintUnderlay(); repaintGhost(); render(); });
+
+  // ===========================================================================
+  // Lageplan-Unterlage: Zeichnen, Import (Bild/PDF/DXF), Kalibrieren
+  // ===========================================================================
+  function clearUnder() { uctx.clearRect(0, 0, VBW, VBH); }
+
+  function repaintUnderlay() {
+    clearUnder();
+    if (!underlay) return;
+    uctx.save();
+    uctx.globalAlpha = Math.max(0, Math.min(1, underlay.opacity));
+    if (underlay.type === 'image') {
+      const c = w2s(underlay.o);               // Bildmitte auf dem Schirm
+      const k = underlay.scale * view.scale;   // Bild-px -> Schirm-px (isotrop)
+      uctx.translate(c.x, c.y);
+      uctx.rotate(-underlay.rot);              // Schirm-y ist gespiegelt
+      uctx.scale(k, k);
+      try { uctx.drawImage(underlay.img, -underlay.iw / 2, -underlay.ih / 2); } catch (e) {}
+    } else if (underlay.type === 'dxf') {
+      uctx.strokeStyle = cssVar('--muted');
+      uctx.lineWidth = 1.2;
+      uctx.lineJoin = 'round';
+      for (const seg of underlay.segs) {
+        if (seg.length < 2) continue;
+        uctx.beginPath();
+        for (let i = 0; i < seg.length; i++) {
+          const s = w2s({ x: underlay.o.x + seg[i].x * underlay.scale, y: underlay.o.y + seg[i].y * underlay.scale });
+          if (i === 0) uctx.moveTo(s.x, s.y); else uctx.lineTo(s.x, s.y);
+        }
+        uctx.stroke();
+      }
+    }
+    uctx.restore();
+  }
+
+  // Weltpunkte der Unterlage (für Einpassen + Info)
+  function underlayWorldPoints() {
+    if (!underlay) return [];
+    if (underlay.type === 'image') {
+      const { iw, ih, o, scale, rot } = underlay;
+      const cr = Math.cos(rot), sr = Math.sin(rot);
+      const map = (px, py) => {
+        const e = (px - iw / 2) * scale, n = -(py - ih / 2) * scale; // Ost/Nord in m
+        return { x: o.x + e * cr - n * sr, y: o.y + e * sr + n * cr };
+      };
+      return [map(0, 0), map(iw, 0), map(iw, ih), map(0, ih)];
+    }
+    const out = [];
+    for (const seg of underlay.segs) for (const p of seg) out.push({ x: underlay.o.x + p.x * underlay.scale, y: underlay.o.y + p.y * underlay.scale });
+    return out;
+  }
+
+  // Kalibrier-Overlay
+  function calibSvg() {
+    if (!calib.active || !calib.pts.length) return '';
+    const col = cssVar('--accent');
+    const cross = (s) => `<line x1="${(s.x - 7).toFixed(1)}" y1="${s.y.toFixed(1)}" x2="${(s.x + 7).toFixed(1)}" y2="${s.y.toFixed(1)}" stroke="${col}" stroke-width="2"/><line x1="${s.x.toFixed(1)}" y1="${(s.y - 7).toFixed(1)}" x2="${s.x.toFixed(1)}" y2="${(s.y + 7).toFixed(1)}" stroke="${col}" stroke-width="2"/>`;
+    let out = '';
+    const scr = calib.pts.map(w2s);
+    for (const s of scr) out += cross(s);
+    const end = calib.pts[1] ? w2s(calib.pts[1]) : (calib.hover ? w2s(calib.hover) : null);
+    if (end && scr[0]) out += `<line x1="${scr[0].x.toFixed(1)}" y1="${scr[0].y.toFixed(1)}" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}" stroke="${col}" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    return out;
+  }
+
+  // Unterlage maßstäblich um Pivot skalieren (Kalibrieren)
+  function underlayScaleAbout(pivot, factor) {
+    underlay.o = { x: pivot.x + (underlay.o.x - pivot.x) * factor, y: pivot.y + (underlay.o.y - pivot.y) * factor };
+    underlay.scale *= factor;
+  }
+
+  function setUlStatus(t) { $('ulStatus').textContent = t || ''; }
+
+  function updateUlInfo() {
+    const el = $('ulInfo');
+    if (!underlay) { el.textContent = ''; return; }
+    const pts = underlayWorldPoints();
+    let mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+    for (const p of pts) { mnx = Math.min(mnx, p.x); mxx = Math.max(mxx, p.x); mny = Math.min(mny, p.y); mxy = Math.max(mxy, p.y); }
+    const w = (mxx - mnx), h = (mxy - mny);
+    const t = underlay.type === 'image' ? 'Bild/PDF' : 'DXF';
+    el.textContent = `${t} · reale Größe ≈ ${w.toFixed(2)} × ${h.toFixed(2)} m`;
+  }
+
+  function onUnderlayLoaded(fit) {
+    setUlStatus('');
+    $('ulCtrls').hidden = false;
+    const isImg = underlay.type === 'image';
+    $('ulOpacity').value = Math.round(underlay.opacity * 100);
+    $('ulOpacityLbl').textContent = Math.round(underlay.opacity * 100) + ' %';
+    $('ulRot').value = 0; $('ulRotLbl').textContent = '0°'; $('ulRot').disabled = !isImg;
+    $('ulMove').disabled = false; $('ulCal').disabled = false; $('ulRemove').disabled = false;
+    setMode('pan');
+    updateUlInfo();
+    repaintUnderlay();
+    if (fit) fitView();
+    render();
+  }
+
+  function removeUnderlay() {
+    underlay = null;
+    if (calib.active) cancelCalibration();
+    if (mode === 'move') setMode('pan');
+    $('ulCtrls').hidden = true;
+    clearUnder(); render();
+  }
+
+  // ---------- Raster (Bild) platzieren ----------
+  function placeImageUnderlay(src, w, h) {
+    const iw = w || src.naturalWidth, ih = h || src.naturalHeight;
+    if (!iw || !ih) { alert('Bild hat keine gültige Größe.'); return; }
+    const worldH = 0.7 * (VBH / view.scale);         // Startgröße: ~70 % der Ansicht
+    const scale = worldH / ih;
+    const center = s2w({ x: VBW / 2, y: VBH / 2 });
+    underlay = { type: 'image', img: src, iw, ih, o: { ...center }, scale, rot: 0, opacity: 0.6 };
+    onUnderlayLoaded(true);
+  }
+  function loadRasterFile(f) {
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); placeImageUnderlay(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); alert('Bild konnte nicht geladen werden.'); };
+    img.src = url;
+  }
+
+  // ---------- PDF via lokal ausgeliefertes pdf.js (Seite 1 -> Bild) ----------
+  let pdfLibPromise = null;
+  function ensurePdfLib() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (pdfLibPromise) return pdfLibPromise;
+    pdfLibPromise = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'vendor/pdf.min.js';
+      s.onload = () => { try { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; res(window.pdfjsLib); } catch (err) { rej(err); } };
+      s.onerror = () => rej(new Error('pdf.js nicht ladbar'));
+      document.head.appendChild(s);
+    });
+    return pdfLibPromise;
+  }
+  async function loadPdfAsImage(f) {
+    setUlStatus('PDF wird geladen …');
+    let lib;
+    try { lib = await ensurePdfLib(); } catch (err) { setUlStatus(''); alert('PDF-Unterstützung konnte nicht geladen werden.'); return; }
+    try {
+      const buf = await f.arrayBuffer();
+      const pdf = await lib.getDocument({ data: buf }).promise;
+      const page = await pdf.getPage(1);
+      const vp1 = page.getViewport({ scale: 1 });
+      const s = Math.min(4, Math.max(1, 2200 / vp1.width)); // Zielbreite ~2200 px
+      const vp = page.getViewport({ scale: s });
+      const cv = document.createElement('canvas');
+      cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+      const cx = cv.getContext('2d');
+      cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, cv.width, cv.height); // PDFs oft transparent
+      await page.render({ canvasContext: cx, viewport: vp }).promise;
+      const npages = pdf.numPages;
+      setUlStatus(npages > 1 ? `Seite 1 von ${npages} geladen.` : '');
+      placeImageUnderlay(cv, cv.width, cv.height);
+    } catch (err) {
+      setUlStatus(''); alert('PDF konnte nicht gerendert werden: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  // ---------- DXF-Parser (LINE, LWPOLYLINE, POLYLINE, CIRCLE, ARC) ----------
+  function parseDXF(text, U) {
+    const raw = text.split(/\r\n|\r|\n/);
+    const toks = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      const c = parseInt(raw[i], 10);
+      if (Number.isNaN(c)) { i -= 1; continue; } // ein Zeile weiterschieben, um Paare zu resynchronisieren
+      toks.push({ c, v: raw[i + 1] });
+    }
+    const ents = []; let cur = null;
+    for (const t of toks) {
+      if (t.c === 0) { if (cur) ents.push(cur); cur = { type: (t.v || '').trim().toUpperCase(), items: [] }; }
+      else if (cur) cur.items.push(t);
+    }
+    if (cur) ents.push(cur);
+    const segs = [], N = 48;
+    const getOf = (e, code) => { const it = e.items.find(x => x.c === code); return it ? parseFloat(it.v) : undefined; };
+    const allOf = (e, code) => e.items.filter(x => x.c === code).map(x => parseFloat(x.v));
+    for (let ei = 0; ei < ents.length; ei++) {
+      const e = ents[ei], T = e.type;
+      if (T === 'LINE') {
+        const x1 = getOf(e, 10), y1 = getOf(e, 20), x2 = getOf(e, 11), y2 = getOf(e, 21);
+        if ([x1, y1, x2, y2].every(n => n !== undefined && !Number.isNaN(n)))
+          segs.push([{ x: x1 * U, y: y1 * U }, { x: x2 * U, y: y2 * U }]);
+      } else if (T === 'LWPOLYLINE') {
+        const xs = allOf(e, 10), ys = allOf(e, 20), pts = [];
+        for (let i = 0; i < Math.min(xs.length, ys.length); i++) pts.push({ x: xs[i] * U, y: ys[i] * U });
+        if (((getOf(e, 70) || 0) & 1) === 1 && pts.length) pts.push({ ...pts[0] });
+        if (pts.length > 1) segs.push(pts);
+      } else if (T === 'POLYLINE') {
+        const closed = ((getOf(e, 70) || 0) & 1) === 1, pts = [];
+        let j = ei + 1;
+        while (j < ents.length && ents[j].type === 'VERTEX') {
+          const vx = getOf(ents[j], 10), vy = getOf(ents[j], 20);
+          if (vx !== undefined && vy !== undefined) pts.push({ x: vx * U, y: vy * U });
+          j++;
+        }
+        ei = (j < ents.length && ents[j].type === 'SEQEND') ? j : j - 1;
+        if (closed && pts.length) pts.push({ ...pts[0] });
+        if (pts.length > 1) segs.push(pts);
+      } else if (T === 'CIRCLE') {
+        const cx = getOf(e, 10), cy = getOf(e, 20), r = getOf(e, 40);
+        if ([cx, cy, r].every(n => n !== undefined && !Number.isNaN(n))) {
+          const pts = []; for (let i = 0; i <= N; i++) { const a = i / N * 2 * Math.PI; pts.push({ x: (cx + r * Math.cos(a)) * U, y: (cy + r * Math.sin(a)) * U }); }
+          segs.push(pts);
+        }
+      } else if (T === 'ARC') {
+        const cx = getOf(e, 10), cy = getOf(e, 20), r = getOf(e, 40); let a0 = getOf(e, 50), a1 = getOf(e, 51);
+        if ([cx, cy, r, a0, a1].every(n => n !== undefined && !Number.isNaN(n))) {
+          a0 = a0 * Math.PI / 180; a1 = a1 * Math.PI / 180; if (a1 < a0) a1 += 2 * Math.PI;
+          const steps = Math.max(6, Math.ceil((a1 - a0) / (2 * Math.PI) * N)), pts = [];
+          for (let i = 0; i <= steps; i++) { const a = a0 + (a1 - a0) * i / steps; pts.push({ x: (cx + r * Math.cos(a)) * U, y: (cy + r * Math.sin(a)) * U }); }
+          segs.push(pts);
+        }
+      }
+    }
+    return segs;
+  }
+
+  function placeDxfUnderlay(segs) {
+    let mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+    for (const seg of segs) for (const p of seg) { mnx = Math.min(mnx, p.x); mxx = Math.max(mxx, p.x); mny = Math.min(mny, p.y); mxy = Math.max(mxy, p.y); }
+    const bcx = (mnx + mxx) / 2, bcy = (mny + mxy) / 2;                 // Mittelpunkt (z. B. Vermessungskoord.)
+    const vc = s2w({ x: VBW / 2, y: VBH / 2 });
+    underlay = { type: 'dxf', segs, o: { x: vc.x - bcx, y: vc.y - bcy }, scale: 1, opacity: 1 };
+    onUnderlayLoaded(true);
+  }
+
+  // ---------- Kalibrieren ----------
+  function startCalibration() {
+    if (!underlay) return;
+    if (mode === 'move') setMode('pan');
+    calib = { active: true, pts: [], hover: null };
+    $('ulCal').classList.add('active');
+    svg.style.cursor = 'crosshair';
+    setUlStatus('Kalibrieren: zwei Punkte bekannten Abstands anklicken (Esc bricht ab).');
+    render();
+  }
+  function cancelCalibration() {
+    calib = { active: false, pts: [], hover: null };
+    $('ulCal').classList.remove('active');
+    svg.style.cursor = mode === 'draw' ? 'crosshair' : mode === 'move' ? 'move' : '';
+    setUlStatus('');
+    render();
+  }
+  function finishCalibration() {
+    const a = calib.pts[0], b = calib.pts[1];
+    const measured = Math.hypot(b.x - a.x, b.y - a.y);
+    calib = { active: false, pts: [], hover: null };
+    $('ulCal').classList.remove('active');
+    svg.style.cursor = mode === 'draw' ? 'crosshair' : mode === 'move' ? 'move' : '';
+    if (measured < 1e-6) { setUlStatus('Punkte zu nah – Kalibrieren abgebrochen.'); render(); return; }
+    const inp = prompt(`Gemessen: ${measured.toFixed(3)} m (aktuell).\nTatsächliche Länge dieser Strecke in Metern:`, measured.toFixed(2));
+    if (inp === null) { setUlStatus(''); render(); return; }
+    const real = parseFloat(String(inp).replace(',', '.'));
+    if (!(real > 0)) { setUlStatus('Ungültige Länge – Kalibrieren abgebrochen.'); render(); return; }
+    underlayScaleAbout(a, real / measured);
+    setUlStatus('Maßstab gesetzt.');
+    updateUlInfo(); repaintUnderlay(); render();
+  }
+
+  // ---------- Bedienung Unterlage ----------
+  $('btnImg').addEventListener('click', () => $('fileImg').click());
+  $('btnDxf').addEventListener('click', () => $('fileDxf').click());
+  $('fileImg').addEventListener('change', (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) loadPdfAsImage(f);
+    else loadRasterFile(f);
+  });
+  $('fileDxf').addEventListener('change', (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const unit = $('dxfUnit').value;
+      const U = unit === 'mm' ? 0.001 : unit === 'cm' ? 0.01 : 1;
+      const segs = parseDXF(String(reader.result), U);
+      if (!segs.length) { alert('Keine unterstützten Geometrien im DXF gefunden\n(LINE, LWPOLYLINE, POLYLINE, CIRCLE, ARC).'); return; }
+      placeDxfUnderlay(segs);
+    };
+    reader.onerror = () => alert('DXF konnte nicht gelesen werden.');
+    reader.readAsText(f);
+  });
+  $('ulOpacity').addEventListener('input', (e) => {
+    if (!underlay) return;
+    underlay.opacity = parseFloat(e.target.value) / 100;
+    $('ulOpacityLbl').textContent = e.target.value + ' %';
+    repaintUnderlay();
+  });
+  $('ulRot').addEventListener('input', (e) => {
+    if (!underlay || underlay.type !== 'image') return;
+    underlay.rot = parseFloat(e.target.value) * Math.PI / 180;
+    $('ulRotLbl').textContent = parseFloat(e.target.value).toFixed(1).replace('.', ',') + '°';
+    updateUlInfo(); repaintUnderlay(); render();
+  });
+  $('ulMove').addEventListener('click', () => {
+    if (!underlay) return;
+    if (calib.active) cancelCalibration();
+    if (mode === 'move') setMode('pan');
+    else { if (mode === 'draw') finishDraw(); setMode('move'); }
+    render();
+  });
+  $('ulCal').addEventListener('click', () => { if (calib.active) cancelCalibration(); else startCalibration(); });
+  $('ulRemove').addEventListener('click', removeUnderlay);
 
   // Start
   fillVehicleForm();
