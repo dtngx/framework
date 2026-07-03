@@ -113,7 +113,7 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.6</span>
+      <span class="ver">v0.7</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
@@ -1205,6 +1205,17 @@
     return { mnx, mxx, mny, mxy };
   }
 
+  // 1-m-Referenzstrecke unterhalb des Inhalts – Maßstabskontrolle beim CAD/PDF-Import
+  function scaleBarWorld(b) {
+    const x0 = b.mnx, y = b.mny - 0.45, t = 0.12;
+    return {
+      line:  [{ x: x0,     y },          { x: x0 + 1, y }],
+      tick0: [{ x: x0,     y: y - t },   { x: x0,     y: y + t }],
+      tick1: [{ x: x0 + 1, y: y - t },   { x: x0 + 1, y: y + t }],
+      label: '1 m',
+    };
+  }
+
   // Rasterlinien (Weltkoord.) innerhalb der BBox – gleiche Schrittweite wie Anzeige
   function gridLinesWorld(b) {
     const steps = [1, 2, 5, 10, 20, 50, 100];
@@ -1225,6 +1236,7 @@
       { name: 'Fahrzeug',     color: 3 },
       { name: 'Raster',       color: 9 },
       { name: 'Hintergrund',  color: 7 },
+      { name: 'Massstab_1m',  color: 30 },
     ];
     let s = '';
     const w = (code, val) => { s += code + '\n' + val + '\n'; };
@@ -1246,6 +1258,10 @@
     if (opts.vehicle) { const g = geometry(); poly([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl], 'Fahrzeug', true); }
     if (opts.grid) for (const seg of gridLinesWorld(opts.bounds)) poly(seg, 'Raster', false);
     if (opts.bg && underlay && underlay.type === 'dxf') for (const seg of underlayDxfWorld()) poly(seg, 'Hintergrund', false);
+    // 1-m-Referenzstrecke (Sanity-Check: im CAD nachmessen → muss exakt 1,000 m sein)
+    const sb = scaleBarWorld(opts.bounds);
+    poly(sb.line, 'Massstab_1m', false); poly(sb.tick0, 'Massstab_1m', false); poly(sb.tick1, 'Massstab_1m', false);
+    w(0, 'TEXT'); w(8, 'Massstab_1m'); w(10, sb.line[0].x.toFixed(4)); w(20, (sb.line[0].y - 0.45).toFixed(4)); w(30, '0.0'); w(40, '0.25'); w(1, sb.label);
     w(0, 'ENDSEC'); w(0, 'EOF');
     return s;
   }
@@ -1265,8 +1281,8 @@
     const dxf = buildDXF({ grid, bg, vehicle: true, bounds });
     downloadBlob('schleppkurve.dxf', dxf, 'application/dxf');
     $('exStatus').textContent = (bg && underlay && underlay.type === 'image')
-      ? 'DXF exportiert. Hinweis: Raster-Hintergrund nur im PDF enthalten.'
-      : 'DXF exportiert.';
+      ? 'DXF exportiert (inkl. 1-m-Referenz auf Layer „Massstab_1m“). Hinweis: Raster-Hintergrund nur im PDF enthalten.'
+      : 'DXF exportiert (inkl. 1-m-Referenz auf Layer „Massstab_1m“).';
   });
 
   // ---------- Vektor-PDF via eigenständigem SVG + Druckdialog ----------
@@ -1280,10 +1296,13 @@
 
   function buildExportSVG(opts) {
     const b = opts.bounds, margin = 0.5;
-    const mnx = b.mnx - margin, mxx = b.mxx + margin, mny = b.mny - margin, mxy = b.mxy + margin;
+    const sb = scaleBarWorld(b);
+    const mnx = b.mnx - margin, mxx = Math.max(b.mxx + margin, b.mnx + 1 + 0.1);
+    const mny = Math.min(b.mny - margin, sb.line[0].y - 0.05), mxy = b.mxy + margin;
     const wM = Math.max(mxx - mnx, 0.001), hM = Math.max(mxy - mny, 0.001);
     const m = opts.scaleDenom > 0 ? 1000 / opts.scaleDenom : Math.min(277 / wM, 190 / hM); // mm pro Meter
-    const Wmm = wM * m, Hmm = hM * m;
+    const Wmm = wM * m;
+    let Hmm = hM * m;
     const X = (p) => ((p.x - mnx) * m).toFixed(2);
     const Y = (p) => ((mxy - p.y) * m).toFixed(2);
     const d = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + X(p) + ' ' + Y(p)).join(' ');
@@ -1305,6 +1324,13 @@
     for (const k of traceKeys) if (wheelTrace[k].length > 1) el += `<path d="${d(wheelTrace[k])}" fill="none" stroke="#777777" stroke-width="0.2" stroke-dasharray="1,1"/>`;
     for (const k of traceKeys) if (cornerTrace[k].length > 1) el += `<path d="${d(cornerTrace[k])}" fill="none" stroke="#e5231b" stroke-width="0.35"/>`;
     if (opts.vehicle) { const g = geometry(); el += `<path d="${d([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl])} Z" fill="none" stroke="#1f9d5a" stroke-width="0.35"/>`; }
+    // 1-m-Referenzstrecke (Sanity-Check: im Druck bei 100 % nachmessen → muss 1,000 m ergeben)
+    el += `<path d="${d(sb.line)}" fill="none" stroke="#111111" stroke-width="0.4"/>`;
+    el += `<path d="${d(sb.tick0)}" fill="none" stroke="#111111" stroke-width="0.4"/>`;
+    el += `<path d="${d(sb.tick1)}" fill="none" stroke="#111111" stroke-width="0.4"/>`;
+    const lblX = X(sb.line[0]), lblY = (parseFloat(Y(sb.line[0])) + 4).toFixed(2);
+    el += `<text x="${lblX}" y="${lblY}" font-family="sans-serif" font-size="2.6" fill="#111111">1 m (Maßstabskontrolle)</text>`;
+    Hmm = Math.max(Hmm, parseFloat(lblY) + 2);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Wmm.toFixed(2)}mm" height="${Hmm.toFixed(2)}mm" viewBox="0 0 ${Wmm.toFixed(2)} ${Hmm.toFixed(2)}">${el}</svg>`;
     return { svg, Wmm, Hmm };
   }
@@ -1326,7 +1352,7 @@
       + '@media print{.bar{display:none;}.sheet{padding:0;}svg{border:none;}}</style></head><body>'
       + '<div class="bar"><button onclick="window.print()">Drucken / Als PDF speichern</button>'
       + '<span class="meta">Maßstab ' + scaleTxt + ' · Blatt ' + Wmm.toFixed(0) + '×' + Hmm.toFixed(0) + ' mm · '
-      + 'Reifenspuren grau · Hüllkurve rot · Begrenzung blau · für Maßstabstreue im Druckdialog 100 % wählen</span></div>'
+      + 'Reifenspuren grau · Hüllkurve rot · Begrenzung blau · 1-m-Referenz zur Maßstabskontrolle · für Maßstabstreue im Druckdialog 100 % wählen</span></div>'
       + '<div class="sheet">' + svg + '</div></body></html>');
     win.document.close();
     $('exStatus').textContent = 'Druckansicht geöffnet (' + scaleTxt + ').';
