@@ -300,16 +300,27 @@
           <h2>Export</h2>
           <label class="chk"><input type="checkbox" id="exGrid"> Raster einschließen</label>
           <label class="chk"><input type="checkbox" id="exBg" checked> Hintergrund (Unterlage) einschließen</label>
-          <label class="f" style="margin:8px 0 0;">PDF-Maßstab
-            <select id="pdfScale">
-              <option value="0">an Seite anpassen</option>
-              <option value="50">1:50</option>
-              <option value="100" selected>1:100</option>
-              <option value="200">1:200</option>
-              <option value="250">1:250</option>
-              <option value="500">1:500</option>
-            </select>
-          </label>
+          <div class="grid2" style="margin-top:8px;">
+            <label class="f" style="margin:0;">PDF-Maßstab
+              <select id="pdfScale">
+                <option value="0">an Blatt anpassen</option>
+                <option value="50">1:50</option>
+                <option value="100" selected>1:100</option>
+                <option value="200">1:200</option>
+                <option value="250">1:250</option>
+                <option value="500">1:500</option>
+              </select>
+            </label>
+            <label class="f" style="margin:0;">Blatt („anpassen")
+              <select id="pdfFmt">
+                <option value="A4" selected>A4</option>
+                <option value="A3">A3</option>
+                <option value="A2">A2</option>
+                <option value="A1">A1</option>
+                <option value="A0">A0</option>
+              </select>
+            </label>
+          </div>
           <div class="row" style="margin-top:10px;">
             <button class="btn" id="exDxf">⬇ DXF</button>
             <button class="btn" id="exPdf">⬇ PDF / Druck</button>
@@ -317,7 +328,9 @@
           <p class="hint" id="exStatus" style="min-height:0;"></p>
           <p class="hint"><strong>Reifenspuren</strong> (grau), <strong>Hüllkurve</strong>/Kantenspuren (rot) und
             <strong>Begrenzungen</strong> (blau) gehen auf getrennte Layer/Farben. DXF liest jedes CAD
-            (dort „Speichern unter" → DWG). PDF öffnet die Druckansicht – für maßstabsgetreue Ausgabe im
+            (dort „Speichern unter" → DWG). Das PDF nutzt eine <strong>DIN-Blattgröße</strong>: bei festem Maßstab
+            wird automatisch das kleinste passende A-Format (Hoch/Quer) gewählt, bei „an Blatt anpassen" das oben
+            gewählte Blatt. Die Zeichnung sitzt <strong>zentriert</strong>. Für maßstabsgetreue Ausgabe im
             Druckdialog <strong>100 % / „Tatsächliche Größe"</strong> wählen. Raster-Hintergründe (Bild/PDF)
             erscheinen nur im PDF, nicht im DXF.</p>
         </div>
@@ -1655,20 +1668,54 @@
     return c.toDataURL('image/png');
   }
 
+  // DIN-A-Blattgrößen (mm, Hochformat)
+  const DIN_A = [
+    { name: 'A4', w: 210, h: 297 }, { name: 'A3', w: 297, h: 420 },
+    { name: 'A2', w: 420, h: 594 }, { name: 'A1', w: 594, h: 841 },
+    { name: 'A0', w: 841, h: 1189 },
+  ];
+  // Kleinstes DIN-Blatt (Hoch/Quer) wählen, in das drawW×drawH (mm) + Rand passt
+  function chooseDinPage(drawW, drawH, pm) {
+    const nW = drawW + 2 * pm, nH = drawH + 2 * pm;
+    const wide = drawW >= drawH;                                 // Ausrichtung passend zum Seitenverhältnis wählen
+    for (const f of DIN_A) {
+      const cand = wide
+        ? [{ w: f.h, h: f.w, orient: 'landscape' }, { w: f.w, h: f.h, orient: 'portrait' }]
+        : [{ w: f.w, h: f.h, orient: 'portrait' }, { w: f.h, h: f.w, orient: 'landscape' }];
+      for (const o of cand) if (nW <= o.w && nH <= o.h) return { fmt: f.name, w: o.w, h: o.h, orient: o.orient };
+    }
+    return { fmt: 'A0', w: wide ? 1189 : 841, h: wide ? 841 : 1189, orient: wide ? 'landscape' : 'portrait', overflow: true };
+  }
+
+  // Baut ein DIN-Blatt-großes SVG (mm) mit zentrierter Zeichnung.
+  // scaleDenom>0 → fester Maßstab 1:denom; sonst „an Blatt angepasst".
   function buildExportSVG(opts) {
-    const b = opts.bounds, margin = 0.5;
+    const b = opts.bounds, margin = 0.5, pm = 10;               // pm = Blattrand (mm)
     const sb = scaleBarWorld(b);
     const mnx = b.mnx - margin, mxx = Math.max(b.mxx + margin, b.mnx + 1 + 0.1);
     const mny = Math.min(b.mny - margin, sb.line[0].y - 0.05), mxy = b.mxy + margin;
     const wM = Math.max(mxx - mnx, 0.001), hM = Math.max(mxy - mny, 0.001);
-    const m = opts.scaleDenom > 0 ? 1000 / opts.scaleDenom : Math.min(277 / wM, 190 / hM); // mm pro Meter
-    const Wmm = wM * m;
-    let Hmm = hM * m;
+    const labelMm = 7;                                           // Platz unter der Zeichnung für „1 m"-Beschriftung
+
+    let m, page, exact;
+    if (opts.scaleDenom > 0) {                                   // fester Maßstab → passendes Blatt suchen
+      m = 1000 / opts.scaleDenom;
+      page = chooseDinPage(wM * m, hM * m + labelMm, pm);
+      exact = !page.overflow;
+      if (page.overflow) m = Math.min((page.w - 2 * pm) / wM, (page.h - 2 * pm) / (hM + labelMm / m));
+    } else {                                                     // an Blatt angepasst → Vorgabeblatt (A4/A3) wählen
+      const req = DIN_A.find(f => f.name === (opts.fitFmt || 'A4')) || DIN_A[2];
+      const land = wM >= hM;                                     // Orientierung nach Seitenverhältnis
+      page = { fmt: req.name, w: land ? req.h : req.w, h: land ? req.w : req.h, orient: land ? 'landscape' : 'portrait' };
+      m = Math.min((page.w - 2 * pm) / wM, (page.h - 2 * pm) / (hM + labelMm));
+      exact = false;
+    }
+    const drawW = wM * m, drawH = hM * m;
+    const offX = (page.w - drawW) / 2, offY = (page.h - drawH) / 2;   // Zeichnung mittig aufs Blatt
     const X = (p) => ((p.x - mnx) * m).toFixed(2);
     const Y = (p) => ((mxy - p.y) * m).toFixed(2);
     const d = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + X(p) + ' ' + Y(p)).join(' ');
-    let el = `<rect x="0" y="0" width="${Wmm.toFixed(2)}" height="${Hmm.toFixed(2)}" fill="#ffffff"/>`;
-    // Unterlage
+    let el = '';
     if (opts.bg && underlay) {
       if (underlay.type === 'image') {
         const u = underlay, s = u.scale, cr = Math.cos(u.rot), sr = Math.sin(u.rot), k = m * s;
@@ -1692,9 +1739,11 @@
     el += `<path d="${d(sb.tick1)}" fill="none" stroke="#111111" stroke-width="0.4"/>`;
     const lblX = X(sb.line[0]), lblY = (parseFloat(Y(sb.line[0])) + 4).toFixed(2);
     el += `<text x="${lblX}" y="${lblY}" font-family="sans-serif" font-size="2.6" fill="#111111">1 m (Maßstabskontrolle)</text>`;
-    Hmm = Math.max(Hmm, parseFloat(lblY) + 2);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Wmm.toFixed(2)}mm" height="${Hmm.toFixed(2)}mm" viewBox="0 0 ${Wmm.toFixed(2)} ${Hmm.toFixed(2)}">${el}</svg>`;
-    return { svg, Wmm, Hmm };
+    // Vollflächiger weißer Blattgrund + zentrierte Zeichnung
+    const inner = `<rect x="0" y="0" width="${page.w}" height="${page.h}" fill="#ffffff"/>`
+      + `<g transform="translate(${offX.toFixed(2)},${offY.toFixed(2)})">${el}</g>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${page.w}mm" height="${page.h}mm" viewBox="0 0 ${page.w} ${page.h}">${inner}</svg>`;
+    return { svg, fmt: page.fmt, orient: page.orient, pageW: page.w, pageH: page.h, exact };
   }
 
   $('exPdf').addEventListener('click', () => {
@@ -1702,26 +1751,30 @@
     const bounds = contentBounds(bg);
     if (!bounds) { $('exStatus').textContent = 'Nichts zu exportieren – erst fahren oder Begrenzungen/Unterlage laden.'; return; }
     const denom = parseInt($('pdfScale').value, 10);
-    const { svg, Wmm, Hmm } = buildExportSVG({ grid, bg, vehicle: true, bounds, scaleDenom: denom });
-    const scaleTxt = denom > 0 ? ('1:' + denom) : 'an Seite angepasst';
-    // Seitenformat exakt auf den Inhalt (SVG + 8 mm Rand) setzen → ein einziges Blatt,
-    // maßstabsgetreu, kein Beschneiden am oberen Rand und keine leere Zusatzseite.
-    const pageW = (Wmm + 16).toFixed(1), pageH = (Hmm + 16).toFixed(1);
+    const fitFmt = ($('pdfFmt') && $('pdfFmt').value) || 'A4';
+    const { svg, fmt, orient, exact } = buildExportSVG({ grid, bg, vehicle: true, bounds, scaleDenom: denom, fitFmt });
+    const scaleTxt = denom > 0 ? (exact ? '1:' + denom : '1:' + denom + ' (auf A0 verkleinert)') : 'an Blatt angepasst';
+    const orientTxt = orient === 'landscape' ? 'quer' : 'hoch';
     const win = window.open('', '_blank');
     if (!win) { $('exStatus').textContent = 'Pop-up blockiert – bitte Pop-ups erlauben und erneut versuchen.'; return; }
-    win.document.write('<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Schleppkurve – Export ' + scaleTxt + '</title>'
-      + '<style>@page{size:' + pageW + 'mm ' + pageH + 'mm;margin:8mm;}'
+    // Standard-DIN-Blattgröße als @page (Schlüsselwort A4/A3… + Ausrichtung) → macOS/Safari
+    // druckt zuverlässig; margin:0, weil das SVG bereits blattfüllend mit weißem Rand ist.
+    win.document.write('<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Schleppkurve – Export ' + fmt + ' ' + orientTxt + '</title>'
+      + '<style>@page{size:' + fmt + ' ' + orient + ';margin:0;}'
       + 'html,body{margin:0;padding:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}'
       + '.bar{padding:10px 14px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #ddd;flex-wrap:wrap;}'
       + '.bar button{font:inherit;padding:7px 14px;cursor:pointer;border:1px solid #ff4f00;background:#ff4f00;color:#fff;border-radius:6px;}'
-      + '.meta{color:#555;font-size:13px;}.sheet{padding:14px;}svg{display:block;border:1px solid #eee;}'
-      + '@media print{.bar{display:none;}.sheet{padding:0;}svg{border:none;}}</style></head><body>'
+      + '.meta{color:#555;font-size:13px;}.sheet{padding:14px;background:#f3f3f2;}'
+      + 'svg{display:block;box-shadow:0 1px 8px rgba(0,0,0,.15);background:#fff;}'
+      + '@media screen{svg{max-width:100%;height:auto;margin:0 auto;}}'
+      + '@media print{.bar{display:none;}.sheet{padding:0;background:none;}svg{box-shadow:none;}}</style></head><body>'
       + '<div class="bar"><button onclick="window.print()">Drucken / Als PDF speichern</button>'
-      + '<span class="meta">Maßstab ' + scaleTxt + ' · Blatt ' + Wmm.toFixed(0) + '×' + Hmm.toFixed(0) + ' mm · '
-      + 'Reifenspuren grau · Hüllkurve rot · Begrenzung blau · 1-m-Referenz zur Maßstabskontrolle · für Maßstabstreue im Druckdialog 100 % wählen</span></div>'
+      + '<span class="meta">Blatt ' + fmt + ' ' + orientTxt + ' · Maßstab ' + scaleTxt + ' · '
+      + 'Reifenspuren grau · Hüllkurve rot · Begrenzung blau · 1-m-Referenz zur Maßstabskontrolle · '
+      + 'im Druckdialog Skalierung „100 %“ bzw. „Tatsächliche Größe“ wählen</span></div>'
       + '<div class="sheet">' + svg + '</div></body></html>');
     win.document.close();
-    $('exStatus').textContent = 'Druckansicht geöffnet (' + scaleTxt + ').';
+    $('exStatus').textContent = 'Druckansicht geöffnet (' + fmt + ' ' + orientTxt + ', ' + scaleTxt + ').';
   });
 
   // ===========================================================================
