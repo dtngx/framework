@@ -9,13 +9,13 @@
       --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
       --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea;
       --ok:#1f9d5a; --err:#e5484d;
-      --grid:#ececea; --grid-strong:#d9d9d6;
+      --grid:#ececea; --grid-strong:#d9d9d6; --boundary:#2f6bd6;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
         --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
-        --grid:#1f1f22; --grid-strong:#2c2c30;
+        --grid:#1f1f22; --grid-strong:#2c2c30; --boundary:#6f9bec;
       }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -89,7 +89,7 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.2</span>
+      <span class="ver">v0.3</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
@@ -102,6 +102,7 @@
         <canvas id="ghost" width="1000" height="640"></canvas>
         <svg id="svg" viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="readout" id="readout"></div>
+        <div class="readout" id="collstat" style="left:auto; right:10px; font-weight:600;"></div>
       </div>
 
       <div class="side">
@@ -147,6 +148,19 @@
             <button class="btn" id="center">Fahrzeug zentrieren</button>
           </div>
           <p class="hint">Vor/Zurück gedrückt halten oder Pfeiltasten: <kbd>↑</kbd><kbd>↓</kbd> fahren, <kbd>←</kbd><kbd>→</kbd> lenken. Ansicht: ziehen = verschieben, Mausrad = zoomen.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Begrenzungen</h2>
+          <div class="row">
+            <button class="btn" id="drawBtn">✏ Zeichnen</button>
+            <button class="btn" id="undoPt">Punkt zurück</button>
+          </div>
+          <div class="row" style="margin-top:8px;">
+            <button class="btn" id="finishB">Fertig</button>
+            <button class="btn" id="clearB">Alle löschen</button>
+          </div>
+          <p class="hint">Zeichnen aktivieren, dann klicken für Eckpunkte (Bordstein, Hindernis, Grundstücksgrenze). <kbd>Enter</kbd> oder „Fertig" schließt den Zug ab, <kbd>Esc</kbd> verwirft. Kollision/​min. Abstand werden live oben rechts angezeigt.</p>
         </div>
       </div>
     </div>
@@ -235,6 +249,13 @@
   let sweptQuads = []; // {fl,fr,rr,rl} in Weltkoord. für Ghost-Repaint
   let lastRecord = null;
 
+  // Begrenzungen & Kollision
+  let mode = 'pan';            // 'pan' | 'draw'
+  let boundaries = [];         // Array von Polylinien (je Array {x,y} Weltkoord.)
+  let currentDraw = null;      // in Arbeit befindliche Polylinie
+  let mouseWorld = null;       // Cursor-Weltposition (Gummiband)
+  let collisionState = { collision: false, points: [], minClear: null };
+
   function resetTraces() {
     wheelTrace = { fl: [], fr: [], rl: [], rr: [] };
     cornerTrace = { fl: [], fr: [], rl: [], rr: [] };
@@ -321,8 +342,9 @@
   function vehicleSvg() {
     const g = geometry();
     const text = cssVar('--text'), accent = cssVar('--accent');
+    const col = collisionState.collision ? cssVar('--err') : accent;
     const bodyPts = poly([g.corners.fl, g.corners.fr, g.corners.rr, g.corners.rl]);
-    let out = `<polygon points="${bodyPts}" fill="${accent}" fill-opacity="0.12" stroke="${accent}" stroke-width="2"/>`;
+    let out = `<polygon points="${bodyPts}" fill="${col}" fill-opacity="${collisionState.collision ? 0.2 : 0.12}" stroke="${col}" stroke-width="2"/>`;
     // Räder als kurze dicke Linien
     const wheel = (center, ang, len) => {
       const dx = Math.cos(ang) * len / 2, dy = Math.sin(ang) * len / 2;
@@ -338,15 +360,82 @@
     return out;
   }
 
+  // ---------- Begrenzungen + Kollision ----------
+  function boundarySvg() {
+    const col = cssVar('--boundary');
+    let out = '';
+    for (const bnd of boundaries) {
+      if (bnd.length > 1) out += `<polyline points="${poly(bnd)}" fill="none" stroke="${col}" stroke-width="2.5"/>`;
+      for (const p of bnd) { const s = w2s(p); out += `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="2.5" fill="${col}"/>`; }
+    }
+    if (currentDraw && currentDraw.length) {
+      const pts = mouseWorld ? currentDraw.concat([mouseWorld]) : currentDraw;
+      if (pts.length > 1) out += `<polyline points="${poly(pts)}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="5,4"/>`;
+      for (const p of currentDraw) { const s = w2s(p); out += `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="3.5" fill="none" stroke="${col}" stroke-width="1.5"/>`; }
+    }
+    return out;
+  }
+  function collisionMarkersSvg() {
+    if (!collisionState.collision) return '';
+    const err = cssVar('--err');
+    return collisionState.points.map(p => { const s = w2s(p); return `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="4" fill="${err}"/>`; }).join('');
+  }
+
+  // Geometrie-/Kollisionsmathematik (Weltkoordinaten, Meter)
+  function segInt(a, b, c, d) {
+    const rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y;
+    const rxs = rx * sy - ry * sx;
+    if (Math.abs(rxs) < 1e-12) return null;
+    const qpx = c.x - a.x, qpy = c.y - a.y;
+    const t = (qpx * sy - qpy * sx) / rxs;
+    const u = (qpx * ry - qpy * rx) / rxs;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: a.x + t * rx, y: a.y + t * ry };
+    return null;
+  }
+  function pointSegDist(p, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y, l2 = dx * dx + dy * dy;
+    let t = l2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  }
+  function segSegDist(a, b, c, d) {
+    if (segInt(a, b, c, d)) return 0;
+    return Math.min(pointSegDist(a, c, d), pointSegDist(b, c, d), pointSegDist(c, a, b), pointSegDist(d, a, b));
+  }
+  function computeCollision() {
+    if (boundaries.length === 0) return { collision: false, points: [], minClear: null };
+    const g = geometry(), c = g.corners;
+    const edges = [[c.fl, c.fr], [c.fr, c.rr], [c.rr, c.rl], [c.rl, c.fl]];
+    let collision = false; const points = []; let minClear = Infinity;
+    for (const bnd of boundaries) {
+      for (let i = 0; i < bnd.length - 1; i++) {
+        const p = bnd[i], q = bnd[i + 1];
+        for (const [a, b] of edges) {
+          const ip = segInt(a, b, p, q);
+          if (ip) { collision = true; points.push(ip); }
+          const dist = segSegDist(a, b, p, q);
+          if (dist < minClear) minClear = dist;
+        }
+      }
+    }
+    return { collision, points, minClear: isFinite(minClear) ? minClear : null };
+  }
+
   function render() {
-    svg.innerHTML = gridSvg() + tracesSvg() + vehicleSvg();
-    // Readout
+    collisionState = computeCollision();
+    svg.innerHTML = gridSvg() + boundarySvg() + tracesSvg() + vehicleSvg() + collisionMarkersSvg();
+    // Readout Lenkung
     const dmax = deltaMax(veh);
     const degMax = dmax * 180 / Math.PI;
     let radiusTxt;
     if (Math.abs(steer) < 0.0005) radiusTxt = 'geradeaus';
     else radiusTxt = 'R(Hinterachse) = ' + (veh.wheelbase / Math.tan(Math.abs(steer))).toFixed(2) + ' m';
     readout.textContent = `Lenkung ${(steer * 180 / Math.PI).toFixed(1)}° (max ±${degMax.toFixed(1)}°) · ${radiusTxt}`;
+    // Readout Kollision/Abstand
+    const cs = document.getElementById('collstat');
+    if (boundaries.length === 0) { cs.textContent = ''; }
+    else if (collisionState.collision) { cs.textContent = '● KOLLISION'; cs.style.color = cssVar('--err'); }
+    else { cs.textContent = 'min. Abstand ' + (collisionState.minClear != null ? collisionState.minClear.toFixed(2) : '–') + ' m'; cs.style.color = cssVar('--ok'); }
   }
 
   // ===========================================================================
@@ -492,6 +581,26 @@
   window.addEventListener('keyup', (e) => { keys.delete(e.key); });
   window.addEventListener('blur', () => keys.clear());
 
+  // Begrenzungen zeichnen
+  function finishDraw() { if (currentDraw && currentDraw.length >= 2) boundaries.push(currentDraw); currentDraw = null; mouseWorld = null; render(); }
+  $('drawBtn').addEventListener('click', () => {
+    mode = mode === 'draw' ? 'pan' : 'draw';
+    $('drawBtn').classList.toggle('active', mode === 'draw');
+    svg.style.cursor = mode === 'draw' ? 'crosshair' : '';
+    if (mode !== 'draw') finishDraw();
+    mouseWorld = null; render();
+  });
+  $('undoPt').addEventListener('click', () => { if (currentDraw && currentDraw.length) { currentDraw.pop(); render(); } });
+  $('finishB').addEventListener('click', finishDraw);
+  $('clearB').addEventListener('click', () => { boundaries = []; currentDraw = null; mouseWorld = null; render(); });
+
+  window.addEventListener('keydown', (e) => {
+    const ae = document.activeElement;
+    if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+    if (e.key === 'Enter' && mode === 'draw') { e.preventDefault(); finishDraw(); }
+    else if (e.key === 'Escape' && currentDraw) { currentDraw = null; mouseWorld = null; render(); }
+  });
+
   $('reset').addEventListener('click', () => { state = { x: 0, y: 0, theta: 0 }; resetTraces(); render(); });
   $('center').addEventListener('click', () => { const s = w2s(state); view.panX += VBW / 2 - s.x; view.panY += VBH / 2 - s.y; repaintGhost(); render(); });
   $('fit').addEventListener('click', fitView);
@@ -499,6 +608,7 @@
   function fitView() {
     const pts = [];
     for (const k of traceKeys) { pts.push(...cornerTrace[k]); }
+    for (const b of boundaries) pts.push(...b);
     const g = geometry(); pts.push(g.corners.fl, g.corners.fr, g.corners.rl, g.corners.rr);
     if (pts.length === 0) return;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -515,8 +625,18 @@
   // Pan (ziehen) + Zoom (Rad)
   let panning = null;
   function svgPt(e) { const r = svg.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * VBW, y: (e.clientY - r.top) / r.height * VBH }; }
-  svg.addEventListener('pointerdown', (e) => { panning = { p: svgPt(e), panX: view.panX, panY: view.panY }; svg.setPointerCapture(e.pointerId); });
+  svg.addEventListener('pointerdown', (e) => {
+    if (mode === 'draw') {
+      if (!currentDraw) currentDraw = [];
+      currentDraw.push(s2w(svgPt(e)));
+      render();
+      return;
+    }
+    panning = { p: svgPt(e), panX: view.panX, panY: view.panY };
+    svg.setPointerCapture(e.pointerId);
+  });
   svg.addEventListener('pointermove', (e) => {
+    if (mode === 'draw') { if (currentDraw) { mouseWorld = s2w(svgPt(e)); render(); } return; }
     if (!panning) return;
     const p = svgPt(e);
     view.panX = panning.panX + (p.x - panning.p.x);
