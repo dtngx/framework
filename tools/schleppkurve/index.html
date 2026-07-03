@@ -113,7 +113,7 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.8</span>
+      <span class="ver">v0.9</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
@@ -248,10 +248,23 @@
             <button class="btn" id="undoPt">Punkt zurück</button>
           </div>
           <div class="row" style="margin-top:8px;">
+            <button class="btn" id="frameBtn">▭ Rahmen</button>
+            <button class="btn" id="pillarBtn">● Stütze</button>
+          </div>
+          <label class="f" style="margin:8px 0 0;">Stützen-Kantenlänge (m)
+            <input type="number" step="0.05" min="0.05" id="pillarSize" value="0.30">
+          </label>
+          <div class="row" style="margin-top:8px;">
             <button class="btn" id="finishB">Fertig</button>
+            <button class="btn" id="undoBnd">Letzte weg</button>
+          </div>
+          <div class="row" style="margin-top:8px;">
             <button class="btn" id="clearB">Alle löschen</button>
           </div>
-          <p class="hint">Zeichnen aktivieren, dann klicken für Eckpunkte (Bordstein, Hindernis, Grundstücksgrenze). <kbd>Enter</kbd> oder „Fertig" schließt den Zug ab, <kbd>Esc</kbd> verwirft. Kollision/​min. Abstand werden live links oben angezeigt.</p>
+          <p class="hint"><strong>Zeichnen</strong>: klicken für Eckpunkte (Bordstein, Grenze); <kbd>Enter</kbd>/„Fertig" schließt ab, <kbd>Esc</kbd> verwirft.
+            <strong>Rahmen</strong>: Betrachtungsbereich aufziehen – die Route bleibt innerhalb (umfährt den Rand nicht).
+            <strong>Stütze</strong>: kleine Rechtecke setzen (Kantenlänge oben einstellbar) – mehrere hintereinander möglich.
+            Kollision/​min. Abstand werden live links oben angezeigt.</p>
         </div>
 
         <div class="panel">
@@ -275,10 +288,11 @@
             <button class="btn" id="plReset">Zurücksetzen</button>
           </div>
           <p class="hint" id="plStatus" style="min-height:0;"></p>
-          <p class="hint"><strong>Start</strong> und <strong>Ziel</strong> setzen: auf die Position klicken, dann
-            ziehen für die Ausrichtung. „Route berechnen" sucht mit dem aktuellen Fahrzeug einen kollisionsfreien,
-            fahrbaren Weg (vor/zurück, Rückwärts wird minimiert) und dockt möglichst genau am Ziel an.
-            <strong>Begrenzungen</strong> wirken als Wände – für „innerhalb bleiben" den Bereich umschließen.
+          <p class="hint"><strong>Start</strong> (grün „S") und <strong>Ziel</strong> (orange „Z") setzen: auf die Position klicken,
+            dann ziehen für die Fahrtrichtung (Pfeil). Beide lassen sich <strong>nachträglich verschieben</strong> (am Mittelpunkt ziehen)
+            und <strong>drehen</strong> (an der Pfeilspitze ziehen). „Route berechnen" sucht mit dem aktuellen Fahrzeug einen
+            kollisionsfreien, fahrbaren Weg (vor/zurück, Rückwärts wird minimiert) und dockt möglichst genau am Ziel an.
+            <strong>Rahmen/​Begrenzungen</strong> wirken als Wände – für „innerhalb bleiben" den Bereich umschließen.
             <strong>Als Spur übernehmen</strong> erzeugt Reifenspuren/Hüllkurve (dann exportierbar).</p>
         </div>
 
@@ -428,9 +442,10 @@
   let lastRecord = null;
 
   // Begrenzungen & Kollision
-  let mode = 'pan';            // 'pan' | 'draw'
+  let mode = 'pan';            // 'pan' | 'draw' | 'frame' | 'pillar' | 'move' | 'setStart' | 'setGoal'
   let boundaries = [];         // Array von Polylinien (je Array {x,y} Weltkoord.)
   let currentDraw = null;      // in Arbeit befindliche Polylinie
+  let frameDraw = null;        // { a, b } beim Aufziehen des Betrachtungsrahmens
   let mouseWorld = null;       // Cursor-Weltposition (Gummiband, gefangen)
   let collisionState = { collision: false, points: [], minClear: null };
   let gridSnap = 0.05;         // m, 0 = aus
@@ -580,6 +595,11 @@
       if (pts.length > 1) out += `<polyline points="${poly(pts)}" fill="none" stroke="${col}" stroke-width="2" stroke-dasharray="5,4"/>`;
       for (const p of currentDraw) { const s = w2s(p); out += `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="3.5" fill="none" stroke="${col}" stroke-width="1.5"/>`; }
     }
+    if (frameDraw) {
+      const a = w2s(frameDraw.a), b = w2s(frameDraw.b);
+      const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(a.x - b.x), h = Math.abs(a.y - b.y);
+      out += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${col}" fill-opacity="0.06" stroke="${col}" stroke-width="2" stroke-dasharray="6,4"/>`;
+    }
     return out;
   }
   function collisionMarkersSvg() {
@@ -609,12 +629,24 @@
     if (segInt(a, b, c, d)) return 0;
     return Math.min(pointSegDist(a, c, d), pointSegDist(b, c, d), pointSegDist(c, a, b), pointSegDist(d, a, b));
   }
+  // Punkt in Polygon (Ray-Casting) – fängt kleine Hindernisse (Stützen), die komplett
+  // von der Karosserie „verschluckt" werden und daher keine Kante schneiden.
+  function pointInPoly(pt, poly) {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+      if (((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
   function computeCollision() {
     if (boundaries.length === 0) return { collision: false, points: [], minClear: null };
     const g = geometry(), c = g.corners;
+    const poly = [c.fl, c.fr, c.rr, c.rl];
     const edges = [[c.fl, c.fr], [c.fr, c.rr], [c.rr, c.rl], [c.rl, c.fl]];
     let collision = false; const points = []; let minClear = Infinity;
     for (const bnd of boundaries) {
+      for (const pt of bnd) { if (pointInPoly(pt, poly)) { collision = true; points.push(pt); minClear = 0; } }
       for (let i = 0; i < bnd.length - 1; i++) {
         const p = bnd[i], q = bnd[i + 1];
         for (const [a, b] of edges) {
@@ -651,8 +683,10 @@
   function collidesAt(st, clearance = 0, v = veh) {
     if (!boundaries.length) return false;
     const c = geometry(st, v).corners;
+    const poly = [c.fl, c.fr, c.rr, c.rl];
     const edges = [[c.fl, c.fr], [c.fr, c.rr], [c.rr, c.rl], [c.rl, c.fl]];
     for (const bnd of boundaries) {
+      for (const pt of bnd) { if (pointInPoly(pt, poly)) return true; } // verschluckte Stütze
       for (let i = 0; i < bnd.length - 1; i++) {
         const p = bnd[i], q = bnd[i + 1];
         for (const [a, b] of edges) {
@@ -786,14 +820,40 @@
     return { step, get expansions() { return expansions; }, maxExp: MAXEXP };
   }
 
-  // Start-/Ziel-Geister + geplante Route zeichnen
-  function poseGhost(pose, color) {
+  // Start-/Ziel-Geister + geplante Route zeichnen.
+  // Deutlicher Fahrtrichtungspfeil, greifbarer Mittelpunkt (verschieben) und
+  // Spitze (drehen). label = 'S' / 'Z'.
+  function poseGhost(pose, color, label) {
     if (!pose) return '';
     const g = geometry(pose), c = g.corners;
     const pts = [c.fl, c.fr, c.rr, c.rl].map(p => { const s = w2s(p); return s.x.toFixed(1) + ',' + s.y.toFixed(1); }).join(' ');
-    const back = w2s(g.C), tip = w2s(g.frontAxle);
-    return `<polygon points="${pts}" fill="${color}" fill-opacity="0.10" stroke="${color}" stroke-width="1.8" stroke-dasharray="5,4"/>`
-      + `<line x1="${back.x.toFixed(1)}" y1="${back.y.toFixed(1)}" x2="${tip.x.toFixed(1)}" y2="${tip.y.toFixed(1)}" stroke="${color}" stroke-width="1.8"/>`;
+    const C = w2s(g.C);
+    const nb = { x: (c.fl.x + c.fr.x) / 2, y: (c.fl.y + c.fr.y) / 2 };
+    const nose = w2s(nb);
+    let dx = nose.x - C.x, dy = nose.y - C.y; const L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L, px = -uy, py = ux;      // Fahrtrichtung + senkrecht (Bildschirm)
+    const ah = 13, aw = 7;                                    // Pfeilspitze
+    const b1 = { x: nose.x - ux * ah, y: nose.y - uy * ah };
+    const a1 = `${nose.x.toFixed(1)},${nose.y.toFixed(1)}`;
+    const a2 = `${(b1.x + px * aw).toFixed(1)},${(b1.y + py * aw).toFixed(1)}`;
+    const a3 = `${(b1.x - px * aw).toFixed(1)},${(b1.y - py * aw).toFixed(1)}`;
+    return `<polygon points="${pts}" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="1.8" stroke-dasharray="5,4"/>`
+      + `<line x1="${C.x.toFixed(1)}" y1="${C.y.toFixed(1)}" x2="${b1.x.toFixed(1)}" y2="${b1.y.toFixed(1)}" stroke="${color}" stroke-width="2.4"/>`
+      + `<polygon points="${a1} ${a2} ${a3}" fill="${color}"/>`
+      + `<circle cx="${nose.x.toFixed(1)}" cy="${nose.y.toFixed(1)}" r="4.5" fill="#fff" fill-opacity="0.9" stroke="${color}" stroke-width="1.6"/>`
+      + `<circle cx="${C.x.toFixed(1)}" cy="${C.y.toFixed(1)}" r="8.5" fill="#fff" fill-opacity="0.92" stroke="${color}" stroke-width="2"/>`
+      + `<text x="${C.x.toFixed(1)}" y="${(C.y + 3.6).toFixed(1)}" text-anchor="middle" font-family="sans-serif" font-size="10" font-weight="700" fill="${color}">${label || ''}</text>`;
+  }
+  // Treffer-Test der Start/Ziel-Griffe (Bildschirm-px): Mitte = verschieben, Spitze = drehen
+  function poseHit(scr) {
+    for (const [which, pose] of [['goal', goalPose], ['start', startPose]]) {
+      if (!pose) continue;
+      const g = geometry(pose), c = g.corners, C = w2s(g.C);
+      const nb = { x: (c.fl.x + c.fr.x) / 2, y: (c.fl.y + c.fr.y) / 2 }, nose = w2s(nb);
+      if (Math.hypot(scr.x - nose.x, scr.y - nose.y) <= 13) return { which, part: 'rot' };
+      if (Math.hypot(scr.x - C.x, scr.y - C.y) <= 15) return { which, part: 'move' };
+    }
+    return null;
   }
   function planSvg() {
     let out = '';
@@ -802,7 +862,7 @@
       out += `<polyline points="${pts}" fill="none" stroke="#7a5cff" stroke-width="2.5" stroke-opacity="0.9"/>`;
       for (let i = 1; i < plannedPath.length; i++) if (plannedPath[i].gear !== plannedPath[i - 1].gear) { const s = w2s(plannedPath[i]); out += `<circle cx="${s.x.toFixed(1)}" cy="${s.y.toFixed(1)}" r="4" fill="#7a5cff"/>`; }
     }
-    out += poseGhost(startPose, '#1f9d5a') + poseGhost(goalPose, '#ff4f00');
+    out += poseGhost(startPose, '#1f9d5a', 'S') + poseGhost(goalPose, '#ff4f00', 'Z');
     return out;
   }
 
@@ -988,16 +1048,27 @@
   function setMode(m) {
     mode = m;
     $('drawBtn').classList.toggle('active', m === 'draw');
+    $('frameBtn').classList.toggle('active', m === 'frame');
+    $('pillarBtn').classList.toggle('active', m === 'pillar');
     $('ulMove').classList.toggle('active', m === 'move');
     $('plStart').classList.toggle('active', m === 'setStart');
     $('plGoal').classList.toggle('active', m === 'setGoal');
-    svg.style.cursor = (m === 'draw' || m === 'setStart' || m === 'setGoal') ? 'crosshair' : m === 'move' ? 'move' : '';
+    svg.style.cursor = (m === 'draw' || m === 'setStart' || m === 'setGoal' || m === 'frame' || m === 'pillar') ? 'crosshair' : m === 'move' ? 'move' : '';
   }
   $('drawBtn').addEventListener('click', () => {
     if (mode === 'draw') { finishDraw(); setMode('pan'); }
     else setMode('draw');
     mouseWorld = null; render();
   });
+  $('frameBtn').addEventListener('click', () => {
+    if (mode === 'draw') finishDraw();
+    setMode(mode === 'frame' ? 'pan' : 'frame'); frameDraw = null; mouseWorld = null; render();
+  });
+  $('pillarBtn').addEventListener('click', () => {
+    if (mode === 'draw') finishDraw();
+    setMode(mode === 'pillar' ? 'pan' : 'pillar'); render();
+  });
+  $('undoBnd').addEventListener('click', () => { if (boundaries.length) { boundaries.pop(); render(); } });
   $('undoPt').addEventListener('click', () => { if (currentDraw && currentDraw.length) { currentDraw.pop(); render(); } });
   $('finishB').addEventListener('click', finishDraw);
   $('clearB').addEventListener('click', () => { boundaries = []; currentDraw = null; mouseWorld = null; render(); });
@@ -1010,6 +1081,7 @@
     if (e.key === 'Escape' && calib.active) { cancelCalibration(); }
     else if (e.key === 'Enter' && mode === 'draw') { e.preventDefault(); finishDraw(); }
     else if (e.key === 'Escape' && currentDraw) { currentDraw = null; mouseWorld = null; render(); }
+    else if (e.key === 'Escape' && (mode === 'frame' || mode === 'pillar')) { frameDraw = null; setMode('pan'); render(); }
   });
 
   $('reset').addEventListener('click', () => { state = { x: 0, y: 0, theta: 0 }; resetTraces(); render(); });
@@ -1056,16 +1128,42 @@
       svg.setPointerCapture(e.pointerId);
       return;
     }
+    if (mode === 'frame') {
+      const wp = snapPoint(s2w(svgPt(e)));
+      frameDraw = { a: wp, b: wp };
+      svg.setPointerCapture(e.pointerId); render();
+      return;
+    }
+    if (mode === 'pillar') {
+      const wp = snapPoint(s2w(svgPt(e)));
+      const h = Math.max(0.02, (parseFloat(String($('pillarSize').value).replace(',', '.')) || 0.3) / 2);
+      const r = [{ x: wp.x - h, y: wp.y - h }, { x: wp.x + h, y: wp.y - h }, { x: wp.x + h, y: wp.y + h }, { x: wp.x - h, y: wp.y + h }];
+      r.push({ ...r[0] });
+      boundaries.push(r); render();
+      return;                                   // Modus aktiv lassen → mehrere Stützen setzen
+    }
     if (mode === 'setStart' || mode === 'setGoal') {
       const wp = s2w(svgPt(e));
       const prev = mode === 'setStart' ? startPose : goalPose;
       const np = { x: wp.x, y: wp.y, theta: prev ? prev.theta : 0 };
       if (mode === 'setStart') startPose = np; else goalPose = np;
-      poseDrag = { which: mode === 'setStart' ? 'start' : 'goal', anchor: wp };
+      poseDrag = { which: mode === 'setStart' ? 'start' : 'goal', part: 'rot', placing: true };
       plannedPath = null; $('plApply').disabled = true; $('plPlay').disabled = true;
       svg.setPointerCapture(e.pointerId);
       render();
       return;
+    }
+    // Im Pan-Modus: vorhandenen Start/Ziel-Griff aufnehmen (verschieben/drehen)
+    if (mode === 'pan') {
+      const hit = poseHit(svgPt(e));
+      if (hit) {
+        const wp = s2w(svgPt(e));
+        const pose = hit.which === 'start' ? startPose : goalPose;
+        poseDrag = { which: hit.which, part: hit.part, off: { x: pose.x - wp.x, y: pose.y - wp.y } };
+        plannedPath = null; $('plApply').disabled = true; $('plPlay').disabled = true;
+        svg.setPointerCapture(e.pointerId); render();
+        return;
+      }
     }
     panning = { p: svgPt(e), panX: view.panX, panY: view.panY };
     svg.setPointerCapture(e.pointerId);
@@ -1073,6 +1171,7 @@
   svg.addEventListener('pointermove', (e) => {
     if (calib.active) { if (calib.pts.length) { calib.hover = s2w(svgPt(e)); render(); } return; }
     if (mode === 'draw') { if (currentDraw) { mouseWorld = snapPoint(s2w(svgPt(e))); render(); } return; }
+    if (frameDraw) { frameDraw.b = snapPoint(s2w(svgPt(e))); render(); return; }
     if (ulDrag && underlay) {
       const w = s2w(svgPt(e));
       underlay.o = { x: ulDrag.o0.x + (w.x - ulDrag.start.x), y: ulDrag.o0.y + (w.y - ulDrag.start.y) };
@@ -1082,19 +1181,40 @@
     if (poseDrag) {
       const wp = s2w(svgPt(e));
       const pose = poseDrag.which === 'start' ? startPose : goalPose;
-      const dx = wp.x - poseDrag.anchor.x, dy = wp.y - poseDrag.anchor.y;
-      if (Math.hypot(dx, dy) > 0.15) pose.theta = Math.atan2(dy, dx);
+      if (poseDrag.part === 'move') {
+        pose.x = wp.x + poseDrag.off.x; pose.y = wp.y + poseDrag.off.y;
+      } else {
+        const dx = wp.x - pose.x, dy = wp.y - pose.y;
+        if (Math.hypot(dx, dy) > 0.15) pose.theta = Math.atan2(dy, dx);
+      }
       render();
       return;
     }
+    if (mode === 'pan' && !panning) { svg.style.cursor = poseHit(svgPt(e)) ? 'grab' : ''; }
     if (!panning) return;
     const p = svgPt(e);
     view.panX = panning.panX + (p.x - panning.p.x);
     view.panY = panning.panY + (p.y - panning.p.y);
     repaintUnderlay(); repaintGhost(); render();
   });
-  svg.addEventListener('pointerup', (e) => { panning = null; ulDrag = null; if (poseDrag) { poseDrag = null; setMode('pan'); render(); } });
-  svg.addEventListener('pointercancel', () => { panning = null; ulDrag = null; if (poseDrag) { poseDrag = null; setMode('pan'); render(); } });
+  function endFrameDraw() {
+    if (!frameDraw) return;
+    const a = frameDraw.a, b = frameDraw.b; frameDraw = null;
+    if (Math.abs(a.x - b.x) > 0.2 && Math.abs(a.y - b.y) > 0.2) {
+      const r = [{ x: a.x, y: a.y }, { x: b.x, y: a.y }, { x: b.x, y: b.y }, { x: a.x, y: b.y }];
+      r.push({ ...r[0] });
+      boundaries.push(r);
+    }
+    setMode('pan'); render();
+  }
+  function endPoseDrag() {
+    if (!poseDrag) return;
+    const placing = poseDrag.placing; poseDrag = null;
+    if (placing) setMode('pan');
+    render();
+  }
+  svg.addEventListener('pointerup', () => { panning = null; ulDrag = null; endFrameDraw(); endPoseDrag(); });
+  svg.addEventListener('pointercancel', () => { panning = null; ulDrag = null; frameDraw = null; endPoseDrag(); });
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
     const p = svgPt(e); const wpt = s2w(p);
@@ -1584,13 +1704,17 @@
     const denom = parseInt($('pdfScale').value, 10);
     const { svg, Wmm, Hmm } = buildExportSVG({ grid, bg, vehicle: true, bounds, scaleDenom: denom });
     const scaleTxt = denom > 0 ? ('1:' + denom) : 'an Seite angepasst';
+    // Seitenformat exakt auf den Inhalt (SVG + 8 mm Rand) setzen → ein einziges Blatt,
+    // maßstabsgetreu, kein Beschneiden am oberen Rand und keine leere Zusatzseite.
+    const pageW = (Wmm + 16).toFixed(1), pageH = (Hmm + 16).toFixed(1);
     const win = window.open('', '_blank');
     if (!win) { $('exStatus').textContent = 'Pop-up blockiert – bitte Pop-ups erlauben und erneut versuchen.'; return; }
     win.document.write('<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Schleppkurve – Export ' + scaleTxt + '</title>'
-      + '<style>@page{size:auto;margin:8mm;}body{margin:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}'
+      + '<style>@page{size:' + pageW + 'mm ' + pageH + 'mm;margin:8mm;}'
+      + 'html,body{margin:0;padding:0;font-family:-apple-system,Segoe UI,Roboto,sans-serif;}'
       + '.bar{padding:10px 14px;display:flex;gap:12px;align-items:center;border-bottom:1px solid #ddd;flex-wrap:wrap;}'
       + '.bar button{font:inherit;padding:7px 14px;cursor:pointer;border:1px solid #ff4f00;background:#ff4f00;color:#fff;border-radius:6px;}'
-      + '.meta{color:#555;font-size:13px;}.sheet{padding:14px;}svg{border:1px solid #eee;}'
+      + '.meta{color:#555;font-size:13px;}.sheet{padding:14px;}svg{display:block;border:1px solid #eee;}'
       + '@media print{.bar{display:none;}.sheet{padding:0;}svg{border:none;}}</style></head><body>'
       + '<div class="bar"><button onclick="window.print()">Drucken / Als PDF speichern</button>'
       + '<span class="meta">Maßstab ' + scaleTxt + ' · Blatt ' + Wmm.toFixed(0) + '×' + Hmm.toFixed(0) + ' mm · '
