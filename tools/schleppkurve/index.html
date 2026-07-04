@@ -113,7 +113,7 @@
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
       <h1>Schlepp<span class="accent">kurve</span></h1>
-      <span class="ver">v0.9</span>
+      <span class="ver">v0.10</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
     </div>
     <p class="hint" style="margin:0 0 4px;">
@@ -674,13 +674,12 @@
   }
 
   // ===========================================================================
-  // Routenplaner: Hybrid A* (nichtholonome Wegsuche) + Dubins-Analytik-Schuss
+  // Routenplaner: Hybrid A* (nichtholonome Wegsuche) + Reeds-Shepp-Analytik-Schuss
   // Vor+zurück fahrbar; Rückwärts wird über Kosten minimiert. Nutzt geometry(),
   // segInt/segSegDist gegen boundaries. Ergebnis = dichte Posenliste zum Abfahren.
   // ===========================================================================
 
   // Winkel-Normierung
-  function m2pi(x) { let v = x % (2 * Math.PI); if (v < 0) v += 2 * Math.PI; return v; }              // [0,2π)
   function m2piS(x) { let v = x % (2 * Math.PI); if (v <= -Math.PI) v += 2 * Math.PI; else if (v > Math.PI) v -= 2 * Math.PI; return v; } // (-π,π]
 
   // Min-Wenderadius (Hinterachsmitte) aus max. Lenkeinschlag
@@ -711,37 +710,149 @@
     return false;
   }
 
-  // ---------- Dubins-Kurven (Einheitsradius, Start (0,0,0) → (x,y,phi)) ----------
-  // Für Heuristik + analytischen Schuss. Immer vorwärts → garantiert erreichbar.
-  function dubinsWords(x, y, phi) {
-    const d = Math.hypot(x, y), th = m2pi(Math.atan2(y, x));
-    const a = m2pi(-th), b = m2pi(phi - th);
-    const sa = Math.sin(a), sb = Math.sin(b), ca = Math.cos(a), cb = Math.cos(b), cab = Math.cos(a - b);
-    const words = [];
-    const add = (segs, len) => { if (segs.every(s => s[1] >= -1e-9)) words.push({ segs, len }); };
-    { const p2 = 2 + d * d - 2 * cab + 2 * d * (sa - sb); if (p2 >= 0) { const tmp = Math.atan2(cb - ca, d + sa - sb); const t = m2pi(-a + tmp), p = Math.sqrt(p2), q = m2pi(b - tmp); add([['L', t], ['S', p], ['L', q]], t + p + q); } }
-    { const p2 = 2 + d * d - 2 * cab + 2 * d * (sb - sa); if (p2 >= 0) { const tmp = Math.atan2(ca - cb, d - sa + sb); const t = m2pi(a - tmp), p = Math.sqrt(p2), q = m2pi(-b + tmp); add([['R', t], ['S', p], ['R', q]], t + p + q); } }
-    { const p2 = -2 + d * d + 2 * cab + 2 * d * (sa + sb); if (p2 >= 0) { const p = Math.sqrt(p2); const tmp = Math.atan2(-ca - cb, d + sa + sb) - Math.atan2(-2, p); const t = m2pi(-a + tmp), q = m2pi(-b + tmp); add([['L', t], ['S', p], ['R', q]], t + p + q); } }
-    { const p2 = -2 + d * d + 2 * cab - 2 * d * (sa + sb); if (p2 >= 0) { const p = Math.sqrt(p2); const tmp = Math.atan2(ca + cb, d - sa - sb) - Math.atan2(2, p); const t = m2pi(a - tmp), q = m2pi(b - tmp); add([['R', t], ['S', p], ['L', q]], t + p + q); } }
-    { const tmp = (6 - d * d + 2 * cab + 2 * d * (sa - sb)) / 8; if (Math.abs(tmp) <= 1) { const p = m2pi(2 * Math.PI - Math.acos(tmp)); const t = m2pi(a - Math.atan2(ca - cb, d - sa + sb) + m2pi(p) / 2); const q = m2pi(a - b - t + m2pi(p)); add([['R', t], ['L', p], ['R', q]], t + p + q); } }
-    { const tmp = (6 - d * d + 2 * cab + 2 * d * (sb - sa)) / 8; if (Math.abs(tmp) <= 1) { const p = m2pi(2 * Math.PI - Math.acos(tmp)); const t = m2pi(-a + Math.atan2(-ca + cb, d + sa - sb) + m2pi(p) / 2); const q = m2pi(m2pi(b) - a - t + m2pi(p)); add([['L', t], ['R', p], ['L', q]], t + p + q); } }
-    return words;
+  // ---------- Reeds-Shepp-Kurven (Einheitsradius, Start (0,0,0) → (x,y,phi)) ----------
+  // Vor- UND rückwärts fahrbare Kürzeste-Weg-Familie (kanonische Formeln 8.1–8.8 aus
+  // Reeds & Shepp 1990 – Allgemeingut). Ersetzt die reinen Vorwärts-Dubins-Kurven, damit
+  // Heuristik und analytischer Ziel-Schuss das Rückwärtsfahren kennen: Ziele, die nur durch
+  // Zurücksetzen erreichbar sind (Einparken, Andocken), werden jetzt gefunden.
+  // Ein Segment = [typ 'L'|'S'|'R', signierte Länge] – Vorzeichen = Fahrtrichtung (vor/zurück).
+  const RS_Z = 1e-9;
+  function rsPolar(x, y) { return { r: Math.hypot(x, y), t: Math.atan2(y, x) }; }
+  function rsTauOmega(u, v, xi, eta, phi) {
+    const d = m2piS(u - v), A = Math.sin(u) - Math.sin(d), B = Math.cos(u) - Math.cos(d) - 1;
+    const t1 = Math.atan2(eta * A - xi * B, xi * A + eta * B);
+    const t2 = 2 * (Math.cos(d) - Math.cos(v) - Math.cos(u)) + 3;
+    const tau = t2 < 0 ? m2piS(t1 + Math.PI) : m2piS(t1);
+    return { tau, omega: m2piS(tau - u + v - phi) };
   }
-  function dubinsBest(x, y, phi) { let best = null; for (const w of dubinsWords(x, y, phi)) if (!best || w.len < best.len) best = w; return best; }
-
-  // Dubins-Segmente (normiert, vorwärts) ab Startpose in Weltposen abtasten (Radius R, Schritt ds)
-  function interpDubins(start, segs, R, ds) {
-    const poses = [{ x: start.x, y: start.y, theta: start.theta, gear: 1 }];
+  // 8.1  L+ S+ L+
+  function rs_LpSpLp(x, y, phi) {
+    const p = rsPolar(x - Math.sin(phi), y - 1 + Math.cos(phi)), t = p.t;
+    if (t >= -RS_Z) { const v = m2piS(phi - t); if (v >= -RS_Z) return { t, u: p.r, v }; }
+    return null;
+  }
+  // 8.2  L+ S+ R+
+  function rs_LpSpRp(x, y, phi) {
+    const p = rsPolar(x + Math.sin(phi), y - 1 - Math.cos(phi)), u1 = p.r * p.r;
+    if (u1 < 4) return null;
+    const u = Math.sqrt(u1 - 4), t = m2piS(p.t + Math.atan2(2, u)), v = m2piS(t - phi);
+    if (t >= -RS_Z && v >= -RS_Z) return { t, u, v };
+    return null;
+  }
+  // 8.3/8.4  L+ R- L-
+  function rs_LpRmLm(x, y, phi) {
+    const p = rsPolar(x - Math.sin(phi), y - 1 + Math.cos(phi));
+    if (p.r > 4) return null;
+    const u = -2 * Math.asin(p.r / 4), t = m2piS(p.t + u / 2 + Math.PI), v = m2piS(phi - t + u);
+    if (t >= -RS_Z && u <= RS_Z) return { t, u, v };
+    return null;
+  }
+  // 8.7  L+ R+ L- R-
+  function rs_LpRupLumRm(x, y, phi) {
+    const xi = x + Math.sin(phi), eta = y - 1 - Math.cos(phi), rho = 0.25 * (2 + Math.hypot(xi, eta));
+    if (rho > 1) return null;
+    const u = Math.acos(rho), o = rsTauOmega(u, -u, xi, eta, phi);
+    if (o.tau >= -RS_Z && o.omega <= RS_Z) return { t: o.tau, u, v: o.omega };
+    return null;
+  }
+  // 8.8  L+ R- L- R+
+  function rs_LpRumLumRp(x, y, phi) {
+    const xi = x + Math.sin(phi), eta = y - 1 - Math.cos(phi), rho = (20 - (xi * xi + eta * eta)) / 16;
+    if (rho < 0 || rho > 1) return null;
+    const u = -Math.acos(rho);
+    if (u < -0.5 * Math.PI) return null;
+    const o = rsTauOmega(u, u, xi, eta, phi);
+    if (o.tau >= -RS_Z && o.omega >= -RS_Z) return { t: o.tau, u, v: o.omega };
+    return null;
+  }
+  // 8.9  L+ R- S- L-  (mittlere R-Drehung fest = π/2)
+  function rs_LpRmSmLm(x, y, phi) {
+    const xi = x - Math.sin(phi), eta = y - 1 + Math.cos(phi), p = rsPolar(xi, eta);
+    if (p.r < 2) return null;
+    const r = Math.sqrt(p.r * p.r - 4), u = 2 - r;
+    const t = m2piS(p.t + Math.atan2(r, -2)), v = m2piS(phi - 0.5 * Math.PI - t);
+    if (t >= -RS_Z && u <= RS_Z && v <= RS_Z) return { t, u, v };
+    return null;
+  }
+  // 8.10  L+ R- S- R-
+  function rs_LpRmSmRm(x, y, phi) {
+    const xi = x + Math.sin(phi), eta = y - 1 - Math.cos(phi), p = rsPolar(-eta, xi);
+    if (p.r < 2) return null;
+    const t = p.t, u = 2 - p.r, v = m2piS(t + 0.5 * Math.PI - phi);
+    if (t >= -RS_Z && u <= RS_Z && v <= RS_Z) return { t, u, v };
+    return null;
+  }
+  // 8.11  L+ R- S- L- R+  (zwei feste π/2-Drehungen)
+  function rs_LpRmSLmRp(x, y, phi) {
+    const xi = x + Math.sin(phi), eta = y - 1 - Math.cos(phi), p = rsPolar(xi, eta);
+    if (p.r < 2) return null;
+    const u = 4 - Math.sqrt(p.r * p.r - 4);
+    if (u > RS_Z) return null;
+    const t = m2piS(Math.atan2((4 - u) * xi - 2 * eta, -2 * xi + (u - 4) * eta)), v = m2piS(t - phi);
+    if (t >= -RS_Z && v >= -RS_Z) return { t, u, v };
+    return null;
+  }
+  // Alle Wörter der Familien CSC/CCC/CCCC über die vier Symmetrien
+  // (identisch, timeflip = rückwärts, reflect = L↔R, timeflip+reflect) enumerieren.
+  function rsAll(x, y, phi) {
+    const cands = [];
+    const swap = t => t === 'L' ? 'R' : (t === 'R' ? 'L' : 'S'), H = 0.5 * Math.PI;
+    const push = (types, lens) => { let L = 0; for (const l of lens) L += Math.abs(l); cands.push({ types, lens, len: L }); };
+    // Eine Familie über die vier Symmetrien (identisch, timeflip=rückwärts, reflect=L↔R, beides)
+    // ab beliebigen Basiskoordinaten (X,Y,P) – für „rückwärts gelesene" Wörter mit X=xb,Y=yb.
+    const xb = x * Math.cos(phi) + y * Math.sin(phi), yb = x * Math.sin(phi) - y * Math.cos(phi);
+    function famC(fn, X, Y, P, types, build) {
+      let r;
+      if ((r = fn(X, Y, P))) push(types, build(r));
+      if ((r = fn(-X, Y, -P))) push(types, build(r).map(v => -v));
+      if ((r = fn(X, -Y, -P))) push(types.map(swap), build(r));
+      if ((r = fn(-X, -Y, P))) push(types.map(swap), build(r).map(v => -v));
+    }
+    const fam = (fn, types, build) => famC(fn, x, y, phi, types, build);
+    // CSC
+    fam(rs_LpSpLp, ['L', 'S', 'L'], r => [r.t, r.u, r.v]);
+    fam(rs_LpSpRp, ['L', 'S', 'R'], r => [r.t, r.u, r.v]);
+    // CCC (vorwärts + „rückwärts gelesen" = reversierte Längenreihenfolge)
+    fam(rs_LpRmLm, ['L', 'R', 'L'], r => [r.t, r.u, r.v]);
+    famC(rs_LpRmLm, xb, yb, phi, ['L', 'R', 'L'], r => [r.v, r.u, r.t]);
+    // CCCC
+    fam(rs_LpRupLumRm, ['L', 'R', 'L', 'R'], r => [r.t, r.u, -r.u, r.v]);
+    fam(rs_LpRumLumRp, ['L', 'R', 'L', 'R'], r => [r.t, r.u, r.u, r.v]);
+    // CCSC (mittlere Drehung fest ±π/2), vorwärts + rückwärts gelesen
+    fam(rs_LpRmSmLm, ['L', 'R', 'S', 'L'], r => [r.t, -H, r.u, r.v]);
+    fam(rs_LpRmSmRm, ['L', 'R', 'S', 'R'], r => [r.t, -H, r.u, r.v]);
+    famC(rs_LpRmSmLm, xb, yb, phi, ['L', 'S', 'R', 'L'], r => [r.v, r.u, -H, r.t]);
+    famC(rs_LpRmSmRm, xb, yb, phi, ['R', 'S', 'R', 'L'], r => [r.v, r.u, -H, r.t]);
+    // CCSCC (zwei feste ±π/2-Drehungen)
+    fam(rs_LpRmSLmRp, ['L', 'R', 'S', 'L', 'R'], r => [r.t, -H, r.u, -H, r.v]);
+    return cands;
+  }
+  function rsBest(x, y, phi) {
+    let best = null;
+    for (const c of rsAll(x, y, phi)) if (c.len > RS_Z && (!best || c.len < best.len)) best = c;
+    return best;
+  }
+  // Reeds-Shepp-Weg (normiert, Radius R) ab Startpose in Weltposen abtasten.
+  // Jede Probe trägt gear (+1 vor / −1 zurück); Bögen sind exakte Kreisbögen mit Radius R.
+  function interpRS(start, path, R, ds) {
+    const g0 = path.lens.length && path.lens[0] < 0 ? -1 : 1;
+    const poses = [{ x: start.x, y: start.y, theta: start.theta, gear: g0 }];
     let cur = { x: start.x, y: start.y, theta: start.theta };
-    for (const [type, lenNorm] of segs) {
-      const s = lenNorm * R; if (s < 1e-9) continue;
-      const n = Math.max(1, Math.ceil(s / ds)), step = s / n;
-      for (let i = 1; i <= n; i++) {
-        const l = step * i; let x, y, th;
-        if (type === 'S') { th = cur.theta; x = cur.x + l * Math.cos(th); y = cur.y + l * Math.sin(th); }
-        else if (type === 'L') { th = cur.theta + l / R; x = cur.x + R * (Math.sin(cur.theta + l / R) - Math.sin(cur.theta)); y = cur.y + R * (-Math.cos(cur.theta + l / R) + Math.cos(cur.theta)); }
-        else { th = cur.theta - l / R; x = cur.x + R * (Math.sin(cur.theta) - Math.sin(cur.theta - l / R)); y = cur.y + R * (Math.cos(cur.theta - l / R) - Math.cos(cur.theta)); }
-        poses.push({ x, y, theta: th, gear: 1 });
+    for (let s = 0; s < path.types.length; s++) {
+      const type = path.types[s], L = path.lens[s];
+      if (Math.abs(L) < RS_Z) continue;
+      const gear = L >= 0 ? 1 : -1, th0 = cur.theta, x0 = cur.x, y0 = cur.y;
+      if (type === 'S') {
+        const dist = Math.abs(L) * R, n = Math.max(1, Math.ceil(dist / ds)), step = dist / n;
+        for (let i = 1; i <= n; i++) { const d = step * i * gear; poses.push({ x: x0 + d * Math.cos(th0), y: y0 + d * Math.sin(th0), theta: th0, gear }); }
+      } else {
+        const ang = Math.abs(L), n = Math.max(1, Math.ceil(ang * R / ds)), sweep = ang * (type === 'L' ? 1 : -1) * gear;
+        for (let i = 1; i <= n; i++) {
+          const th = th0 + sweep * (i / n);
+          const x = type === 'L' ? x0 + R * (Math.sin(th) - Math.sin(th0)) : x0 - R * (Math.sin(th) - Math.sin(th0));
+          const y = type === 'L' ? y0 - R * (Math.cos(th) - Math.cos(th0)) : y0 + R * (Math.cos(th) - Math.cos(th0));
+          poses.push({ x, y, theta: th, gear });
+        }
       }
       const last = poses[poses.length - 1]; cur = { x: last.x, y: last.y, theta: last.theta };
     }
@@ -773,16 +884,16 @@
     function hcost(x, y, th) {
       const dx = goal.x - x, dy = goal.y - y;
       const lx = (dx * Math.cos(th) + dy * Math.sin(th)) / R, ly = (-dx * Math.sin(th) + dy * Math.cos(th)) / R;
-      const db = dubinsBest(lx, ly, goal.theta - th);
+      const rs = rsBest(lx, ly, m2piS(goal.theta - th));
       const euc = Math.hypot(dx, dy);
-      return Math.max(euc, db ? db.len * R : euc);
+      return Math.max(euc, rs ? rs.len * R : euc);
     }
     const goalReached = (n) => Math.hypot(n.x - goal.x, n.y - goal.y) <= posTol && Math.abs(m2piS(n.theta - goal.theta)) <= headTol;
     function tryShot(n) {
       const dx = goal.x - n.x, dy = goal.y - n.y;
       const lx = (dx * Math.cos(n.theta) + dy * Math.sin(n.theta)) / R, ly = (-dx * Math.sin(n.theta) + dy * Math.cos(n.theta)) / R;
-      const db = dubinsBest(lx, ly, goal.theta - n.theta); if (!db) return null;
-      const poses = interpDubins(n, db.segs, R, SUBSTEP);
+      const rs = rsBest(lx, ly, m2piS(goal.theta - n.theta)); if (!rs) return null;
+      const poses = interpRS(n, rs, R, SUBSTEP);
       for (let i = 1; i < poses.length; i++) if (collidesAt(poses[i], clearance, v)) return null;
       return poses;
     }
