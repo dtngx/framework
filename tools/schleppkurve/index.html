@@ -1256,6 +1256,80 @@
 
   rebuildVehicleSelect('p0');
 
+  // ===========================================================================
+  // Projekte (Arbeitsstand: Fahrzeugpose, Begrenzungen, Route, Ansicht, Lageplan)
+  // Fahrzeugprofile (customVehicles, oben) bleiben davon unberührt/global.
+  // ===========================================================================
+  let currentProjectId = null;
+  let ready = false;
+
+  function serializeUnderlay(u) {
+    if (!u) return null;
+    if (u.type === 'dxf') return { type: 'dxf', segs: u.segs, o: u.o, scale: u.scale, opacity: u.opacity };
+    if (u.type === 'image') {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = u.iw; cv.height = u.ih;
+        cv.getContext('2d').drawImage(u.img, 0, 0, u.iw, u.ih);
+        return { type: 'image', dataUrl: cv.toDataURL('image/png'), iw: u.iw, ih: u.ih, o: u.o, scale: u.scale, rot: u.rot, opacity: u.opacity };
+      } catch (e) {
+        return null; // z.B. CORS-belastetes Bild – Underlay wird dann einfach nicht gespeichert
+      }
+    }
+    return null;
+  }
+
+  function collectState() {
+    return {
+      veh, state, steer, view: { ...view },
+      boundaries, startPose, goalPose, plannedPath,
+      gridSnap, angleSnap,
+      underlay: serializeUnderlay(underlay),
+      wheelTrace, cornerTrace, sweptQuads,
+    };
+  }
+
+  function loadImage(dataUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    });
+  }
+
+  async function restoreState(data) {
+    if (!data) return;
+    if (data.veh) veh = data.veh;
+    if (data.state) state = data.state;
+    if (typeof data.steer === 'number') steer = data.steer;
+    if (data.view) Object.assign(view, data.view);
+    if (Array.isArray(data.boundaries)) boundaries = data.boundaries;
+    if (data.startPose) startPose = data.startPose;
+    if (data.goalPose) goalPose = data.goalPose;
+    if (data.plannedPath) plannedPath = data.plannedPath;
+    if (typeof data.gridSnap === 'number') gridSnap = data.gridSnap;
+    if (typeof data.angleSnap === 'number') angleSnap = data.angleSnap;
+    if (data.wheelTrace) wheelTrace = data.wheelTrace;
+    if (data.cornerTrace) cornerTrace = data.cornerTrace;
+    if (Array.isArray(data.sweptQuads)) sweptQuads = data.sweptQuads;
+    // Verhindert, dass resizeStage() die wiederhergestellte Kamera-Position
+    // beim ersten Aufruf mit ihrem Standard-Ausschnitt überschreibt.
+    if (data.view) viewInit = true;
+
+    if (data.underlay && data.underlay.type === 'dxf') {
+      underlay = { type: 'dxf', segs: data.underlay.segs, o: data.underlay.o, scale: data.underlay.scale, opacity: data.underlay.opacity };
+    } else if (data.underlay && data.underlay.type === 'image') {
+      const img = await loadImage(data.underlay.dataUrl);
+      if (img) {
+        underlay = { type: 'image', img, iw: data.underlay.iw, ih: data.underlay.ih, o: data.underlay.o, scale: data.underlay.scale, rot: data.underlay.rot, opacity: data.underlay.opacity };
+      }
+    }
+
+    $('plApply').disabled = !plannedPath;
+    $('plPlay').disabled = !plannedPath;
+  }
+
   (async () => {
     await Toolbox.maybeOfferMigration(TOOL_ID, [VKEY]);
     customVehicles = (await Toolbox.loadKey(TOOL_ID, VKEY, VKEY)) || [];
@@ -2098,10 +2172,33 @@
   });
 
   // Start
-  fillVehicleForm();
-  $('speedLbl').textContent = '3,0 m/s';
-  window.addEventListener('resize', resizeStage);
-  resizeStage(); // setzt VBW/VBH auf die reale Stage-Größe und rendert
+  async function bootstrap() {
+    const session = await Toolbox.getSession();
+    if (session.loggedIn) {
+      const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Schleppkurve' });
+      currentProjectId = picked.project.id;
+      await restoreState(picked.project.data);
+    }
+
+    fillVehicleForm();
+    $('speedLbl').textContent = '3,0 m/s';
+    window.addEventListener('resize', resizeStage);
+    resizeStage(); // setzt VBW/VBH auf die reale Stage-Größe und rendert
+    ready = true;
+
+    if (currentProjectId != null) {
+      // Periodischer Autosave statt Instrumentierung jeder einzelnen Änderung
+      // (Zeichnen/Fahren/Planen ändern den Zustand sehr häufig) – günstig genug
+      // für eine einzelne SQLite-Zeile pro Projekt.
+      setInterval(() => {
+        if (ready && currentProjectId != null) Toolbox.projects.save(TOOL_ID, currentProjectId, collectState());
+      }, 2000);
+      window.addEventListener('beforeunload', () => {
+        if (currentProjectId != null) Toolbox.projects.save(TOOL_ID, currentProjectId, collectState());
+      });
+    }
+  }
+  bootstrap();
   </script>
 </body>
 </html>

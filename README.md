@@ -74,12 +74,10 @@ Dashboard im internen Netz / lokal, nicht öffentlich erreichbar.
 ## Login & Userdaten
 
 Das Dashboard und alle Tools bleiben auch ohne Login voll nutzbar. Mit einem
-Account (Button oben rechts in der Toolbar) werden die Daten der Tools
-`fahrtenbuch`, `bauamt-links`, `schleppkurve` und `ifc-renamer` statt im
+Account (Button oben rechts in der Toolbar) werden Daten statt im
 `localStorage` des Browsers in einer lokalen SQLite-Datenbank
 (`data/toolbox.sqlite`) gespeichert – damit sieht man seine Daten auf jedem
-Gerät wieder. Beim ersten Login pro Tool wird angeboten, vorhandene
-Browser-Daten einmalig zu übernehmen.
+Gerät wieder.
 
 - **Erster registrierter Account** wird automatisch als aktiver Admin
   angelegt (sonst könnte niemand weitere Accounts freischalten).
@@ -90,3 +88,17 @@ Browser-Daten einmalig zu übernehmen.
   gibt dabei eine harmlose „experimental“-Warnung aus.
 - `data/` ist in `.gitignore` (enthält Passwort-Hashes und Nutzdaten) und wird
   beim ersten Start automatisch angelegt.
+
+**`fahrtenbuch` und `bauamt-links`**: einfache Daten (Kunden/Fahrten bzw.
+gespeicherte Links) – beim ersten Login wird angeboten, vorhandene
+Browser-Daten einmalig zu übernehmen.
+
+**`rampen-check`, `regenwasser-rechner`, `schleppkurve`, `ifc-renamer`**:
+diese Tools kennen zusätzlich **Projekte** – mehrere benannte, gespeicherte
+Arbeitsstände pro Tool. Eingeloggte User sehen beim Öffnen dieser Tools immer
+zuerst eine Projekt-Auswahl (bestehendes Projekt öffnen, umbenennen, löschen
+oder ein neues anlegen); erst danach wird das Tool nutzbar. Ohne Login
+merken sich `rampen-check`/`regenwasser-rechner` weiterhin nur den letzten
+Stand im Browser (kein Projekt-Konzept). Wiederverwendbare Presets
+(Schleppkurve-Fahrzeugprofile, IFC-Renamer-Favoriten) bleiben davon getrennt
+und gelten global pro Account, unabhängig vom gewählten Projekt.

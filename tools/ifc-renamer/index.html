@@ -286,6 +286,47 @@
   let project = null, site = null, building = null;
   let favorites = [];
 
+  // ---------------------------------------------------------------------------
+  // Projekt-Zustand (zuletzt eingegebene Namen/Koordinaten, nicht die Datei selbst)
+  // ---------------------------------------------------------------------------
+  let currentProjectId = null;
+  let ready = false;
+  let saveTimer = null;
+  let resumedValues = null;
+
+  function collectState() {
+    return {
+      projectName: F.projectName.value,
+      siteName: F.siteName.value,
+      buildingName: F.buildingName.value,
+      latDeg: F.latDeg.value, latMin: F.latMin.value, latSec: F.latSec.value, latMs: F.latMs.value,
+      lonDeg: F.lonDeg.value, lonMin: F.lonMin.value, lonSec: F.lonSec.value, lonMs: F.lonMs.value,
+    };
+  }
+
+  // Wird direkt nach dem Öffnen einer Datei angewandt: übernimmt zuletzt
+  // gespeicherte Namen/Koordinaten über die aus der Datei gelesenen Werte,
+  // damit man nach erneutem Hochladen (z. B. nächste Revision) nicht wieder
+  // bei Null anfängt. Die Datei selbst wird dabei nicht verändert/gespeichert.
+  function applyResumedValues() {
+    if (!resumedValues) return;
+    if (project && resumedValues.projectName) F.projectName.value = resumedValues.projectName;
+    if (site && resumedValues.siteName) F.siteName.value = resumedValues.siteName;
+    if (building && resumedValues.buildingName) F.buildingName.value = resumedValues.buildingName;
+    if (site) {
+      coordFields.forEach(k => { if (resumedValues[k] !== undefined && resumedValues[k] !== '') F[k].value = resumedValues[k]; });
+    }
+    updateDecimal();
+  }
+
+  function scheduleSave() {
+    if (!ready) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (currentProjectId != null) Toolbox.projects.save(TOOL_ID, currentProjectId, collectState());
+    }, 600);
+  }
+
   const $ = (id) => document.getElementById(id);
   const F = {
     projectName: $('projectName'), siteName: $('siteName'), buildingName: $('buildingName'),
@@ -328,6 +369,7 @@
     }
     coordFields.forEach(k => F[k].disabled = !site);
     updateDecimal();
+    applyResumedValues();
 
     $('fileInfo').textContent = `${name} · ${fileLines.length} Zeilen`;
 
@@ -346,7 +388,8 @@
     const lon = toDec(intVal(F.lonDeg), intVal(F.lonMin), intVal(F.lonSec), intVal(F.lonMs));
     $('decimal').textContent = `Dezimal: ${lat.toFixed(6)}° N, ${lon.toFixed(6)}° E`;
   }
-  coordFields.forEach(k => F[k].addEventListener('input', updateDecimal));
+  coordFields.forEach(k => F[k].addEventListener('input', () => { updateDecimal(); scheduleSave(); }));
+  [F.projectName, F.siteName, F.buildingName].forEach(el => el.addEventListener('input', scheduleSave));
 
   // ---------- Download (entspricht "Speichern unter") ----------
   function downloadIfc() {
@@ -469,11 +512,20 @@
 
   refreshFavSelect();
 
-  (async () => {
+  async function bootstrap() {
     await Toolbox.maybeOfferMigration(TOOL_ID, [FAV_KEY]);
     favorites = (await Toolbox.loadKey(TOOL_ID, FAV_KEY, FAV_KEY)) || [];
     refreshFavSelect();
-  })();
+
+    const session = await Toolbox.getSession();
+    if (session.loggedIn) {
+      const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — IFC-Renamer' });
+      currentProjectId = picked.project.id;
+      resumedValues = picked.project.data || null;
+    }
+    ready = true;
+  }
+  bootstrap();
   </script>
 </body>
 </html>
