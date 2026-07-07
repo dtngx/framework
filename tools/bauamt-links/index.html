@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bauamt-Links · KEKS Werkzeugkasten</title>
+  <style>
+    :root {
+      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
+      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+    a.back:hover { color: var(--accent); }
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 8px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+    .head h1 .accent { color: var(--accent); }
+    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+    .lead { color: var(--muted); font-size: 13.5px; margin-bottom: 20px; max-width: 720px; }
+
+    .toolbar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; }
+
+    .btn {
+      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); padding: 9px 16px; border-radius: 7px; font-size: 13px; transition: all .15s; font-weight: 600;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { color: #fff; filter: brightness(1.05); }
+    .btn.danger:hover { border-color: var(--err); color: var(--err); }
+    .btn-x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
+    .btn-x:hover { color: var(--err); }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+
+    .amt-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+    .amt-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; gap: 10px; }
+    .amt-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .chevron { color: var(--muted); transition: transform .15s; flex: none; }
+    .amt-card.open .chevron { transform: rotate(90deg); }
+    .amt-title { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .amt-actions { display: flex; gap: 6px; flex: none; }
+    .amt-body { padding: 4px 16px 14px; border-top: 1px solid var(--border); }
+
+    .link-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+    .link-row:last-child { border-bottom: none; }
+    .link-label { font-size: 13px; color: var(--muted); min-width: 170px; }
+    .link-url { flex: 1; font-size: 13px; word-break: break-all; }
+    .link-url a { color: var(--accent); text-decoration: none; }
+    .link-url a:hover { text-decoration: underline; }
+    .link-empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+
+    input[type=text] {
+      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 7px; font-family: inherit; font-size: 13px; outline: none;
+    }
+    input[type=text]:focus { border-color: var(--accent); }
+    .edit-row { display: flex; gap: 8px; margin: 6px 0; align-items: center; }
+    .edit-row input { flex: 1; }
+
+    .add-link { margin-top: 8px; }
+    .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
+    .status { font-size: 11.5px; color: var(--muted); text-align: right; margin-top: 6px; min-height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+    <div class="head">
+      <h1>Bauamt<span class="accent">-Links</span></h1>
+      <span class="sub">Portale &amp; Ansprechpartner je Bauamt</span>
+    </div>
+    <p class="lead">
+      Übersicht der Bauamt-Portale und wichtigen Links je Behörde – im Team gemeinsam gepflegt.
+      Ein Bauamt anlegen, aufklappen und Links (z. B. Bauantrag-Upload, Baustellenanzeige) hinterlegen.
+    </p>
+
+    <div class="toolbar">
+      <button class="btn primary" id="add-amt">+ Bauamt hinzufügen</button>
+    </div>
+
+    <div id="list"></div>
+    <div id="empty" class="empty" hidden>Noch keine Einträge. Mit „+ Bauamt hinzufügen“ starten.</div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+  'use strict';
+
+  const STORAGE_KEY = 'bauamt-links-data';
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore, start fresh */ }
+    return { amts: [] };
+  }
+
+  let data = load();
+  const openIds = new Set();
+  let editingAmtId = null;
+
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('empty');
+  const statusEl = document.getElementById('status');
+  let saveTimer = null;
+
+  function save() {
+    statusEl.textContent = 'speichere…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        statusEl.textContent = 'gespeichert';
+        setTimeout(() => { statusEl.textContent = ''; }, 1200);
+      } catch (e) {
+        statusEl.textContent = 'Fehler beim Speichern';
+      }
+    }, 200);
+  }
+
+  function addAmt() {
+    const amt = { id: uid(), name: 'Neues Bauamt', links: [] };
+    data.amts.push(amt);
+    openIds.add(amt.id);
+    editingAmtId = amt.id;
+    save();
+    render();
+    const input = listEl.querySelector(`[data-amt-name-input="${amt.id}"]`);
+    if (input) { input.focus(); input.select(); }
+  }
+
+  function deleteAmt(id) {
+    if (!confirm('Dieses Bauamt inkl. aller Links löschen?')) return;
+    data.amts = data.amts.filter(a => a.id !== id);
+    save();
+    render();
+  }
+
+  function addLink(amtId) {
+    const amt = data.amts.find(a => a.id === amtId);
+    amt.links.push({ id: uid(), label: '', url: '', editing: true });
+    save();
+    render();
+  }
+
+  function deleteLink(amtId, linkId) {
+    const amt = data.amts.find(a => a.id === amtId);
+    amt.links = amt.links.filter(l => l.id !== linkId);
+    save();
+    render();
+  }
+
+  function render() {
+    listEl.innerHTML = '';
+    emptyEl.hidden = data.amts.length !== 0;
+
+    for (const amt of data.amts) {
+      const isOpen = openIds.has(amt.id);
+      const isEditingName = editingAmtId === amt.id;
+
+      const card = document.createElement('div');
+      card.className = 'amt-card' + (isOpen ? ' open' : '');
+
+      const head = document.createElement('div');
+      head.className = 'amt-head';
+
+      const left = document.createElement('div');
+      left.className = 'amt-head-left';
+      left.innerHTML = `<span class="chevron">▶</span>`;
+
+      if (isEditingName) {
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = amt.name;
+        nameInput.setAttribute('data-amt-name-input', amt.id);
+        nameInput.addEventListener('click', e => e.stopPropagation());
+        nameInput.addEventListener('input', e => { amt.name = e.target.value; save(); });
+        nameInput.addEventListener('blur', () => { editingAmtId = null; render(); });
+        nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.blur(); });
+        left.appendChild(nameInput);
+      } else {
+        const title = document.createElement('span');
+        title.className = 'amt-title';
+        title.textContent = amt.name;
+        left.appendChild(title);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'amt-actions';
+      actions.addEventListener('click', e => e.stopPropagation());
+
+      const renameBtn = document.createElement('button');
+      renameBtn.className = 'btn btn-sm';
+      renameBtn.textContent = 'Umbenennen';
+      renameBtn.addEventListener('click', () => {
+        editingAmtId = isEditingName ? null : amt.id;
+        render();
+        if (!isEditingName) {
+          const input = listEl.querySelector(`[data-amt-name-input="${amt.id}"]`);
+          if (input) { input.focus(); input.select(); }
+        }
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-sm danger';
+      delBtn.textContent = 'Löschen';
+      delBtn.addEventListener('click', () => deleteAmt(amt.id));
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(delBtn);
+
+      head.appendChild(left);
+      head.appendChild(actions);
+      head.addEventListener('click', () => {
+        if (isOpen) openIds.delete(amt.id); else openIds.add(amt.id);
+        render();
+      });
+
+      card.appendChild(head);
+
+      if (isOpen) {
+        const body = document.createElement('div');
+        body.className = 'amt-body';
+
+        if (amt.links.length === 0) {
+          const emptyLinks = document.createElement('div');
+          emptyLinks.className = 'link-empty';
+          emptyLinks.textContent = 'Noch keine Links.';
+          body.appendChild(emptyLinks);
+        }
+
+        for (const link of amt.links) {
+          body.appendChild(renderLink(amt, link));
+        }
+
+        const addLinkBtn = document.createElement('div');
+        addLinkBtn.className = 'add-link';
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm';
+        btn.textContent = '+ Link hinzufügen';
+        btn.addEventListener('click', () => addLink(amt.id));
+        addLinkBtn.appendChild(btn);
+        body.appendChild(addLinkBtn);
+
+        card.appendChild(body);
+      }
+
+      listEl.appendChild(card);
+    }
+  }
+
+  function renderLink(amt, link) {
+    const isEditing = !!link.editing;
+
+    if (isEditing) {
+      const wrap = document.createElement('div');
+
+      const row1 = document.createElement('div');
+      row1.className = 'edit-row';
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.placeholder = 'Bezeichnung (z. B. Bauantrag Upload)';
+      labelInput.value = link.label;
+      labelInput.addEventListener('input', e => { link.label = e.target.value; save(); });
+      row1.appendChild(labelInput);
+
+      const row2 = document.createElement('div');
+      row2.className = 'edit-row';
+      const urlInput = document.createElement('input');
+      urlInput.type = 'text';
+      urlInput.placeholder = 'https://…';
+      urlInput.value = link.url;
+      urlInput.addEventListener('input', e => { link.url = e.target.value; save(); });
+
+      const doneBtn = document.createElement('button');
+      doneBtn.className = 'btn primary btn-sm';
+      doneBtn.textContent = 'Fertig';
+      doneBtn.addEventListener('click', () => { link.editing = false; save(); render(); });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-x';
+      delBtn.title = 'Entfernen';
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', () => deleteLink(amt.id, link.id));
+
+      row2.appendChild(urlInput);
+      row2.appendChild(doneBtn);
+      row2.appendChild(delBtn);
+
+      wrap.appendChild(row1);
+      wrap.appendChild(row2);
+      return wrap;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'link-row';
+
+    const label = document.createElement('div');
+    label.className = 'link-label';
+    label.textContent = link.label || '(ohne Bezeichnung)';
+
+    const urlCell = document.createElement('div');
+    urlCell.className = 'link-url';
+    if (link.url) {
+      const a = document.createElement('a');
+      a.href = link.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = link.url;
+      urlCell.appendChild(a);
+    } else {
+      const span = document.createElement('span');
+      span.style.color = 'var(--muted)';
+      span.textContent = 'keine URL';
+      urlCell.appendChild(span);
+    }
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-sm';
+    editBtn.textContent = 'Bearbeiten';
+    editBtn.addEventListener('click', () => { link.editing = true; save(); render(); });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-x';
+    delBtn.title = 'Entfernen';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', () => deleteLink(amt.id, link.id));
+
+    row.appendChild(label);
+    row.appendChild(urlCell);
+    row.appendChild(editBtn);
+    row.appendChild(delBtn);
+    return row;
+  }
+
+  document.getElementById('add-amt').addEventListener('click', addAmt);
+
+  render();
+  </script>
+</body>
+</html>

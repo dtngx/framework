@@ -1,0 +1,11 @@
+{
+  "name": "Bauamt-Links",
+  "description": "Portale, Uploads und Ansprechpartner je Bauamt sammeln und im Team pflegen – aufklappbare Karten je Behörde mit beliebig vielen Links.",
+  "category": "Referenz",
+  "icon": "🏛️",
+  "type": "page",
+  "entry": "index.html",
+  "version": "1.0",
+  "tags": ["Bauamt", "Links", "Behörde", "Portale"],
+  "author": "KEKS ARCHITEKTEN"
+}
