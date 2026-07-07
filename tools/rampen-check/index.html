@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Rampen-Check · KEKS Werkzeugkasten</title>
+  <script src="/toolbox-client.js"></script>
   <style>
     :root {
       --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
@@ -234,6 +235,39 @@
   let animating = false;
   let animRaf = null;
 
+  // ---------------------------------------------------------------------------
+  // Speichern / Laden (Projekte bei Login, sonst localStorage)
+  // ---------------------------------------------------------------------------
+  const TOOL_ID = 'rampen-check';
+  const STORAGE_KEY = 'rampen-check-state';
+  let currentProjectId = null;
+  let ready = false;
+  let saveTimer = null;
+
+  function collectState() {
+    return { segments, presetVehicle, customVehicle, customMode };
+  }
+
+  function restoreState(data) {
+    if (!data) return;
+    if (Array.isArray(data.segments) && data.segments.length) segments = data.segments;
+    if (data.presetVehicle) presetVehicle = data.presetVehicle;
+    if (data.customVehicle) customVehicle = data.customVehicle;
+    if (typeof data.customMode === 'boolean') customMode = data.customMode;
+  }
+
+  function scheduleSave() {
+    if (!ready) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (currentProjectId != null) {
+        Toolbox.projects.save(TOOL_ID, currentProjectId, collectState());
+      } else {
+        Toolbox.saveKey(TOOL_ID, STORAGE_KEY, collectState(), STORAGE_KEY);
+      }
+    }, 600);
+  }
+
   const activeVehicle = () => (customMode ? customVehicle : presetVehicle);
 
   const els = {
@@ -387,12 +421,12 @@
         : `<select id="vehSel">${optionEls}</select>`}
     `;
 
-    els.vehiclePanel.querySelector('[data-mode="preset"]').onclick = () => { customMode = false; onVehicleChange(); };
-    els.vehiclePanel.querySelector('[data-mode="custom"]').onclick = () => { customMode = true; onVehicleChange(); };
+    els.vehiclePanel.querySelector('[data-mode="preset"]').onclick = () => { customMode = false; onVehicleChange(); scheduleSave(); };
+    els.vehiclePanel.querySelector('[data-mode="custom"]').onclick = () => { customMode = true; onVehicleChange(); scheduleSave(); };
     const sel = els.vehiclePanel.querySelector('#vehSel');
-    if (sel) sel.onchange = (e) => { presetVehicle = { ...PRESET_VEHICLES.find(v => v.name === e.target.value) }; onVehicleChange(); };
+    if (sel) sel.onchange = (e) => { presetVehicle = { ...PRESET_VEHICLES.find(v => v.name === e.target.value) }; onVehicleChange(); scheduleSave(); };
     els.vehiclePanel.querySelectorAll('[data-cv]').forEach(inp => {
-      inp.oninput = (e) => { customVehicle[e.target.dataset.cv] = parseInt(e.target.value) || 0; onVehicleChange(false); };
+      inp.oninput = (e) => { customVehicle[e.target.dataset.cv] = parseInt(e.target.value) || 0; onVehicleChange(false); scheduleSave(); };
     });
   }
 
@@ -413,9 +447,9 @@
       <div class="seg-list">${rows}</div>
     `;
 
-    els.segmentPanel.querySelector('#addSeg').onclick = () => { segments.push({ length: 1000, slope: 0 }); renderSegments(); updateSliderRange(); renderViz(); };
+    els.segmentPanel.querySelector('#addSeg').onclick = () => { segments.push({ length: 1000, slope: 0 }); renderSegments(); updateSliderRange(); renderViz(); scheduleSave(); };
     els.segmentPanel.querySelectorAll('[data-remove]').forEach(btn => {
-      btn.onclick = () => { const i = +btn.dataset.remove; if (segments.length > 1) { segments.splice(i, 1); renderSegments(); updateSliderRange(); renderViz(); } };
+      btn.onclick = () => { const i = +btn.dataset.remove; if (segments.length > 1) { segments.splice(i, 1); renderSegments(); updateSliderRange(); renderViz(); scheduleSave(); } };
     });
     els.segmentPanel.querySelectorAll('[data-seg]').forEach(inp => {
       inp.oninput = (e) => {
@@ -423,6 +457,7 @@
         segments[i] = { ...segments[i], [field]: parseFloat(e.target.value) || 0 };
         updateSliderRange();
         renderViz();
+        scheduleSave();
       };
     });
   }
@@ -483,10 +518,23 @@
   // ---------------------------------------------------------------------------
   // Start
   // ---------------------------------------------------------------------------
-  renderVehiclePanel();
-  renderSegments();
-  updateSliderRange();
-  renderViz();
+  async function bootstrap() {
+    const session = await Toolbox.getSession();
+    if (session.loggedIn) {
+      const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Rampen-Check' });
+      currentProjectId = picked.project.id;
+      restoreState(picked.project.data);
+    } else {
+      restoreState(await Toolbox.loadKey(TOOL_ID, STORAGE_KEY, STORAGE_KEY));
+    }
+
+    renderVehiclePanel();
+    renderSegments();
+    updateSliderRange();
+    renderViz();
+    ready = true;
+  }
+  bootstrap();
   </script>
 </body>
 </html>

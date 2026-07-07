@@ -393,40 +393,11 @@ async function handleAuthAndDataRoutes(req, res, pathname, method) {
     return true;
   }
 
-  // --- Daten-API: einzelnen Wert lesen/schreiben ---
-  const dataMatch = pathname.match(/^\/api\/data\/([^/]+)\/([^/]+)$/);
-  if (dataMatch && (method === 'GET' || method === 'PUT')) {
-    const toolId = decodeURIComponent(dataMatch[1]);
-    const key = decodeURIComponent(dataMatch[2]);
-    const session = auth.requireAuth(req);
-    if (!session) {
-      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
-      return true;
-    }
-    if (!knownToolIds().has(toolId)) {
-      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
-      return true;
-    }
-    if (!DATA_KEY_RE.test(key)) {
-      sendJson(res, 400, { ok: false, error: 'Ungültiger Schlüssel.' });
-      return true;
-    }
-
-    if (method === 'GET') {
-      const raw = db.getToolData(session.user.id, toolId, key);
-      sendJson(res, 200, { value: raw ? JSON.parse(raw) : null });
-      return true;
-    }
-
-    // PUT
-    const body = await readJsonBody(req);
-    const value = 'value' in body ? body.value : body;
-    db.putToolData(session.user.id, toolId, key, JSON.stringify(value));
-    sendJson(res, 200, { ok: true });
-    return true;
-  }
-
   // --- Migration: Status abfragen ---
+  // Hinweis: Diese beiden migrationsspezifischen Routen müssen VOR der
+  // generischen /api/data/:toolId/:key-Route stehen, da "migration-status"
+  // und "migrate" sonst als ganz normale (falsche) Datenschlüssel behandelt
+  // würden – das generische Muster matcht sonst zuerst.
   const migStatusMatch = pathname.match(/^\/api\/data\/([^/]+)\/migration-status$/);
   if (migStatusMatch && method === 'GET') {
     const toolId = decodeURIComponent(migStatusMatch[1]);
@@ -475,6 +446,134 @@ async function handleAuthAndDataRoutes(req, res, pathname, method) {
     return true;
   }
 
+  // --- Daten-API: einzelnen Wert lesen/schreiben ---
+  const dataMatch = pathname.match(/^\/api\/data\/([^/]+)\/([^/]+)$/);
+  if (dataMatch && (method === 'GET' || method === 'PUT')) {
+    const toolId = decodeURIComponent(dataMatch[1]);
+    const key = decodeURIComponent(dataMatch[2]);
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
+      return true;
+    }
+    if (!knownToolIds().has(toolId)) {
+      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
+      return true;
+    }
+    if (!DATA_KEY_RE.test(key)) {
+      sendJson(res, 400, { ok: false, error: 'Ungültiger Schlüssel.' });
+      return true;
+    }
+
+    if (method === 'GET') {
+      const raw = db.getToolData(session.user.id, toolId, key);
+      sendJson(res, 200, { value: raw ? JSON.parse(raw) : null });
+      return true;
+    }
+
+    // PUT
+    const body = await readJsonBody(req);
+    const value = 'value' in body ? body.value : body;
+    db.putToolData(session.user.id, toolId, key, JSON.stringify(value));
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  // --- Projekte: Liste + Anlegen ---
+  const projectsListMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);
+  if (projectsListMatch && method === 'GET') {
+    const toolId = decodeURIComponent(projectsListMatch[1]);
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
+      return true;
+    }
+    if (!knownToolIds().has(toolId)) {
+      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
+      return true;
+    }
+    sendJson(res, 200, { projects: db.listProjects(session.user.id, toolId) });
+    return true;
+  }
+
+  if (projectsListMatch && method === 'POST') {
+    const toolId = decodeURIComponent(projectsListMatch[1]);
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
+      return true;
+    }
+    if (!knownToolIds().has(toolId)) {
+      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
+      return true;
+    }
+    const body = await readJsonBody(req);
+    const name = String(body.name || '').trim();
+    if (!name || name.length > 80) {
+      sendJson(res, 400, { ok: false, error: 'Projektname muss 1–80 Zeichen lang sein.' });
+      return true;
+    }
+    const initialData = body.data && typeof body.data === 'object' ? body.data : {};
+    const project = db.createProject(session.user.id, toolId, name, JSON.stringify(initialData));
+    sendJson(res, 200, { project: { id: project.id, name: project.name, data: initialData } });
+    return true;
+  }
+
+  // --- Projekte: einzelnes Projekt lesen/speichern/löschen ---
+  const projectMatch = pathname.match(/^\/api\/projects\/([^/]+)\/(\d+)$/);
+  if (projectMatch) {
+    const toolId = decodeURIComponent(projectMatch[1]);
+    const projectId = Number(projectMatch[2]);
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
+      return true;
+    }
+    if (!knownToolIds().has(toolId)) {
+      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
+      return true;
+    }
+    const project = db.getProject(projectId);
+    if (!project || project.tool_id !== toolId) {
+      sendJson(res, 404, { ok: false, error: 'Projekt nicht gefunden.' });
+      return true;
+    }
+    if (project.user_id !== session.user.id) {
+      sendJson(res, 403, { ok: false, error: 'Kein Zugriff auf dieses Projekt.' });
+      return true;
+    }
+
+    if (method === 'GET') {
+      sendJson(res, 200, {
+        project: { id: project.id, name: project.name, data: JSON.parse(project.data_json) },
+      });
+      return true;
+    }
+
+    if (method === 'PUT') {
+      const body = await readJsonBody(req);
+      if (typeof body.name === 'string') {
+        const name = body.name.trim();
+        if (!name || name.length > 80) {
+          sendJson(res, 400, { ok: false, error: 'Projektname muss 1–80 Zeichen lang sein.' });
+          return true;
+        }
+        db.renameProject(projectId, name);
+      }
+      if ('data' in body) {
+        db.updateProjectData(projectId, JSON.stringify(body.data));
+      }
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+
+    if (method === 'DELETE') {
+      db.deleteProject(projectId);
+      sendJson(res, 200, { ok: true });
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -498,7 +597,12 @@ const server = http.createServer((req, res) => {
   }
 
   // --- API: Auth & Userdaten ---
-  if (pathname.startsWith('/api/auth/') || pathname.startsWith('/api/admin/') || pathname.startsWith('/api/data/')) {
+  if (
+    pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/admin/') ||
+    pathname.startsWith('/api/data/') ||
+    pathname.startsWith('/api/projects/')
+  ) {
     handleAuthAndDataRoutes(req, res, pathname, req.method).then((handled) => {
       if (!handled) sendJson(res, 404, { ok: false, error: 'Unbekannte API-Route.' });
     }).catch((err) => {

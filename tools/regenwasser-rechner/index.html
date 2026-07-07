@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Regenwasser-Rechner · KEKS Werkzeugkasten</title>
+  <script src="/toolbox-client.js"></script>
   <style>
     :root {
       --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
@@ -193,6 +194,48 @@
       }
     }
     totalEl.textContent = fmt(total) + ' l/s';
+    scheduleSave();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Speichern / Laden (Projekte bei Login, sonst localStorage)
+  // ---------------------------------------------------------------------------
+  const TOOL_ID = 'regenwasser-rechner';
+  const STORAGE_KEY = 'regenwasser-rechner-state';
+  let currentProjectId = null;
+  let ready = false;
+  let saveTimer = null;
+
+  function collectState() {
+    return {
+      rows: rows.map(r => ({
+        name: r.name.value,
+        r: r.r.value,
+        A: r.A.value,
+        alpha: r.alpha.value,
+        csel: r.csel.value,
+        cnum: r.cnum.value,
+      })),
+    };
+  }
+
+  function restoreState(data) {
+    for (const r of rows.slice()) { rows = rows.filter(x => x !== r); r.el.remove(); }
+    const savedRows = (data && Array.isArray(data.rows)) ? data.rows : [];
+    if (!savedRows.length) { addRow(); return; }
+    for (const preset of savedRows) addRow(preset);
+  }
+
+  function scheduleSave() {
+    if (!ready) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (currentProjectId != null) {
+        Toolbox.projects.save(TOOL_ID, currentProjectId, collectState());
+      } else {
+        Toolbox.saveKey(TOOL_ID, STORAGE_KEY, collectState(), STORAGE_KEY);
+      }
+    }, 600);
   }
 
   function buildCOptions() {
@@ -225,6 +268,9 @@
     rI.value = preset.r || '';
     aI.value = preset.A || '';
     alphaI.value = preset.alpha || '';
+    if (preset.csel !== undefined) csel.value = preset.csel;
+    if (preset.cnum !== undefined) cnum.value = preset.cnum;
+    cnum.hidden = csel.value !== 'custom';
 
     const r = { el, name: nameI, r: rI, A: aI, alpha: alphaI, csel, cnum, resultEl };
 
@@ -279,7 +325,18 @@
   document.getElementById('add').addEventListener('click', () => addRow());
   document.getElementById('export').addEventListener('click', exportCsv);
 
-  addRow();
+  async function bootstrap() {
+    const session = await Toolbox.getSession();
+    if (session.loggedIn) {
+      const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Regenwasser-Rechner' });
+      currentProjectId = picked.project.id;
+      restoreState(picked.project.data);
+    } else {
+      restoreState(await Toolbox.loadKey(TOOL_ID, STORAGE_KEY, STORAGE_KEY));
+    }
+    ready = true;
+  }
+  bootstrap();
   </script>
 </body>
 </html>
