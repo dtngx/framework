@@ -52,6 +52,7 @@ framework/
     ├── rampen-check/        # page (v1.0) – Rampen-/Zufahrt-Kollisionscheck
     ├── ifc-renamer/         # page (v1.0) – IFC Projekt/Site/Building umbenennen
     ├── regenwasser-rechner/ # page (v1.1) – Regenwasserabfluss nach DIN 1986-100
+    ├── fahrtenbuch/         # page (v1.0) – Kunden/Fahrten erfassen, Distanzen via OSM, Jahresübersicht
     ├── schleppkurve/        # page (v0.11) – visuelle Schleppkurve, 2-achsig (Import, Routenplaner/Simulation mit Reeds-Shepp-Rückwärtsplanung + hindernisbewusster Suchheuristik/Visualisierung, Rahmen/Stützen, DXF/PDF-Export)
     ├── u-wert-rechner/      # link – U-Wert-Rechner (ubakus.de)
     └── dataholz/            # link – Holzbauteil-Katalog dataholz.eu
