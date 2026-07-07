@@ -623,6 +623,45 @@ const server = http.createServer((req, res) => {
   return serveStatic(res, PUBLIC_DIR, relPath, path.join(PUBLIC_DIR, 'index.html'));
 });
 
+// -------------------------------------------------------------
+// Admin-Bootstrap über Umgebungsvariablen (z.B. für Docker)
+// -------------------------------------------------------------
+//
+// Setzt ADMIN_USERNAME/ADMIN_PASSWORD nur beim allerersten Start um, damit
+// ein Container ohne manuelle Registrierung über die Weboberfläche direkt
+// mit einem nutzbaren Admin-Account startet. Existiert der Account bereits
+// (z.B. nach einem Neustart, oder weil das Passwort später im Dashboard
+// geändert wurde), wird NICHTS überschrieben – Env-Variablen sind hier
+// bewusst nur ein einmaliger Seed, keine dauerhafte Quelle der Wahrheit.
+function ensureAdminFromEnv() {
+  const username = process.env.ADMIN_USERNAME;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!username && !password) return;
+
+  if (!username || !password) {
+    console.error('[toolbox] ADMIN_USERNAME und ADMIN_PASSWORD müssen zusammen gesetzt werden – Admin-Bootstrap übersprungen.');
+    return;
+  }
+  if (!USERNAME_RE.test(username)) {
+    console.error('[toolbox] ADMIN_USERNAME ungültig (3–32 Zeichen, Buchstaben/Zahlen/._-) – Admin-Bootstrap übersprungen.');
+    return;
+  }
+  if (password.length < PASSWORD_MIN_LEN) {
+    console.error(`[toolbox] ADMIN_PASSWORD zu kurz (mind. ${PASSWORD_MIN_LEN} Zeichen) – Admin-Bootstrap übersprungen.`);
+    return;
+  }
+  if (db.getUserByUsername(username)) {
+    console.log(`[toolbox] Admin-Account "${username}" existiert bereits – ADMIN_PASSWORD wird nicht erneut angewandt.`);
+    return;
+  }
+
+  const passwordHash = auth.hashPassword(password);
+  db.createUser({ username, passwordHash, role: 'admin', status: 'active' });
+  console.log(`[toolbox] Admin-Account "${username}" aus ADMIN_USERNAME/ADMIN_PASSWORD angelegt.`);
+}
+
+ensureAdminFromEnv();
+
 server.listen(PORT, () => {
   const tools = discoverTools();
   console.log('\n  🟧 KEKS Werkzeugkasten');

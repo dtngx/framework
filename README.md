@@ -16,6 +16,28 @@ node server.js
 Dann im Browser öffnen: **http://localhost:4000**
 (Port ändern: `PORT=8080 node server.js`)
 
+### Start mit Docker
+
+```bash
+cp .env.example .env   # anpassen: PORT, ADMIN_USERNAME, ADMIN_PASSWORD
+docker compose up --build
+```
+
+Dann im Browser öffnen: **http://localhost:4000** (bzw. der in `.env` gesetzte Port).
+
+- `ADMIN_USERNAME`/`ADMIN_PASSWORD` legen beim **allerersten** Start automatisch
+  einen aktiven Admin-Account an, damit man sich nicht erst manuell über die
+  Weboberfläche registrieren und selbst freischalten muss. Beide Variablen
+  sind optional – lässt man sie weg, funktioniert der übliche Weg (erster
+  registrierter Account wird automatisch Admin) unverändert weiter.
+- Das Passwort wird **nur beim ersten Start** übernommen. Ändert man es später
+  im Dashboard, bleibt diese Änderung auch nach einem Neustart des Containers
+  bestehen – Env-Variablen überschreiben kein bestehendes Passwort.
+- Die SQLite-Datenbank liegt über das Volume `./data:/app/data` außerhalb des
+  Containers und übersteht damit Neustarts und Image-Updates.
+- Ohne Docker Compose reicht auch direkt `docker build -t keks-werkzeugkasten .`
+  und `docker run -p 4000:4000 -v $(pwd)/data:/app/data -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD=... keks-werkzeugkasten`.
+
 ## Idee
 
 - **Ein Dashboard** als kachelbasierte Übersicht – Suche, Kategorien, Hell/Dunkel.
@@ -42,6 +64,9 @@ Siehe **[`tools/_vorlage/README.md`](tools/_vorlage/README.md)**. Kurzfassung:
 
 ```
 framework/
+├── Dockerfile            # Node-Basis-Image, kein npm install nötig
+├── docker-compose.yml    # Port-Mapping, Volume für data/, Env-Vars
+├── .env.example          # Vorlage für .env (PORT, ADMIN_USERNAME, ADMIN_PASSWORD)
 ├── server.js            # Dashboard-Server (reines Node, keine Dependencies)
 ├── lib/                  # Auth & Datenbank-Helfer
 │   ├── db.js             # SQLite-Schema + Zugriffs-Helper (node:sqlite)
@@ -80,7 +105,10 @@ Account (Button oben rechts in der Toolbar) werden Daten statt im
 Gerät wieder.
 
 - **Erster registrierter Account** wird automatisch als aktiver Admin
-  angelegt (sonst könnte niemand weitere Accounts freischalten).
+  angelegt (sonst könnte niemand weitere Accounts freischalten). Bei
+  Docker-Betrieb kann dieser erste Admin-Account stattdessen auch direkt
+  über `ADMIN_USERNAME`/`ADMIN_PASSWORD` vorgegeben werden (siehe „Start mit
+  Docker" oben).
 - Alle weiteren Registrierungen sind zunächst `pending` und müssen im
   Admin-Bereich (`/admin.html`, Link im Konto-Menü) freigeschaltet werden.
 - Die Datenbank nutzt Node's eingebautes `node:sqlite` – bewusst gewählt,

@@ -1,0 +1,12 @@
+services:
+  werkzeugkasten:
+    build: .
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      PORT: 4000
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
