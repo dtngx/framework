@@ -94,6 +94,7 @@
       <h1>Regenwasser<span class="accent">-Rechner</span></h1>
       <span class="ver">v1.1</span>
       <span class="sub">Flachdachentwässerung · DIN 1986-100</span>
+      <button id="switchProject" class="btn" hidden>⇄ Projekt wechseln</button>
     </div>
     <p class="lead">
       Regenwasserabfluss je Teilfläche nach <code>Q = r₅,₅ × C × A ⁄ 10.000</code> –
@@ -226,6 +227,12 @@
     for (const preset of savedRows) addRow(preset);
   }
 
+  async function switchProject() {
+    const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wechseln — Regenwasser-Rechner' });
+    currentProjectId = picked.project.id;
+    restoreState(picked.project.data);
+  }
+
   function scheduleSave() {
     if (!ready) return;
     clearTimeout(saveTimer);
@@ -331,6 +338,8 @@
       const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Regenwasser-Rechner' });
       currentProjectId = picked.project.id;
       restoreState(picked.project.data);
+      document.getElementById('switchProject').hidden = false;
+      document.getElementById('switchProject').addEventListener('click', switchProject);
     } else {
       restoreState(await Toolbox.loadKey(TOOL_ID, STORAGE_KEY, STORAGE_KEY));
     }

@@ -97,8 +97,24 @@ Browser-Daten einmalig zu übernehmen.
 diese Tools kennen zusätzlich **Projekte** – mehrere benannte, gespeicherte
 Arbeitsstände pro Tool. Eingeloggte User sehen beim Öffnen dieser Tools immer
 zuerst eine Projekt-Auswahl (bestehendes Projekt öffnen, umbenennen, löschen
-oder ein neues anlegen); erst danach wird das Tool nutzbar. Ohne Login
-merken sich `rampen-check`/`regenwasser-rechner` weiterhin nur den letzten
-Stand im Browser (kein Projekt-Konzept). Wiederverwendbare Presets
+oder ein neues anlegen); erst danach wird das Tool nutzbar. Über den Button
+„⇄ Projekt wechseln" im Tool-Kopf kann jederzeit zu einem anderen Projekt
+gewechselt werden, ohne die Seite neu zu laden. Ohne Login merken sich
+`rampen-check`/`regenwasser-rechner` weiterhin nur den letzten Stand im
+Browser (kein Projekt-Konzept). Wiederverwendbare Presets
 (Schleppkurve-Fahrzeugprofile, IFC-Renamer-Favoriten) bleiben davon getrennt
 und gelten global pro Account, unabhängig vom gewählten Projekt.
+
+## Wichtiger Hinweis: Gewährleistung & Betriebsumgebung
+
+- **Keine Gewähr für die Richtigkeit der Angaben.** Alle Tools können Fehler
+  enthalten – Ergebnisse (Berechnungen, Maße, Kollisionsprüfungen etc.) sind
+  ohne Gewähr und ersetzen keine fachliche Prüfung.
+- **Das Login-/User-System ist ausschließlich für die interne Nutzung
+  ausgelegt** (siehe Sicherheitshinweise oben: kein Rate-Limiting, kein
+  2FA, einfache Bedrohungsannahmen). Ein öffentliches Hosting außerhalb
+  eines internen/vertrauenswürdigen Netzes sollte erst nach einer
+  gründlichen Sicherheitsüberprüfung und einem entsprechenden Umbau des
+  Systems in Erwägung gezogen werden.
+
+Dieser Hinweis wird auch auf der Werkzeugübersicht im Dashboard angezeigt.

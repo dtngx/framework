@@ -94,6 +94,7 @@
       <h1>Rampen<span class="accent">-Check</span></h1>
       <span class="ver">v1.0</span>
       <span class="sub">Zufahrt · Bodenfreiheit · Rampenknick</span>
+      <button id="switchProject" class="btn" hidden>⇄ Projekt wechseln</button>
     </div>
 
     <div id="status" class="status"></div>
@@ -248,12 +249,25 @@
     return { segments, presetVehicle, customVehicle, customMode };
   }
 
+  // Setzt bei fehlenden Feldern bewusst auf die Standardwerte zurück (nicht nur
+  // bedingt überschreiben), damit ein Projektwechsel zur Laufzeit den Zustand
+  // des vorherigen Projekts nicht als Rest stehen lässt.
   function restoreState(data) {
-    if (!data) return;
-    if (Array.isArray(data.segments) && data.segments.length) segments = data.segments;
-    if (data.presetVehicle) presetVehicle = data.presetVehicle;
-    if (data.customVehicle) customVehicle = data.customVehicle;
-    if (typeof data.customMode === 'boolean') customMode = data.customMode;
+    data = data || {};
+    segments = (Array.isArray(data.segments) && data.segments.length) ? data.segments : DEFAULT_SEGMENTS.map(s => ({ ...s }));
+    presetVehicle = data.presetVehicle || { ...PRESET_VEHICLES[0] };
+    customVehicle = data.customVehicle || { name: "Eigenes Fahrzeug", overhangFront: 1000, overhangRear: 1000, wheelbase: 2500, clearance: 100, approachAngle: 10, departureAngle: 14 };
+    customMode = typeof data.customMode === 'boolean' ? data.customMode : false;
+  }
+
+  async function switchProject() {
+    const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wechseln — Rampen-Check' });
+    currentProjectId = picked.project.id;
+    restoreState(picked.project.data);
+    renderVehiclePanel();
+    renderSegments();
+    updateSliderRange();
+    renderViz();
   }
 
   function scheduleSave() {
@@ -524,6 +538,8 @@
       const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Rampen-Check' });
       currentProjectId = picked.project.id;
       restoreState(picked.project.data);
+      document.getElementById('switchProject').hidden = false;
+      document.getElementById('switchProject').addEventListener('click', switchProject);
     } else {
       restoreState(await Toolbox.loadKey(TOOL_ID, STORAGE_KEY, STORAGE_KEY));
     }
