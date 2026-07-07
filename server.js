@@ -18,6 +18,8 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const db = require('./lib/db');
+const auth = require('./lib/auth');
 
 const ROOT = __dirname;
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -118,13 +120,40 @@ function isInside(base, target) {
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 }
 
-function sendJson(res, status, data) {
+function sendJson(res, status, data, extraHeaders) {
   const body = JSON.stringify(data);
-  res.writeHead(status, {
+  res.writeHead(status, Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
-  });
+  }, extraHeaders || {}));
   res.end(body);
+}
+
+/** Liest den Request-Body ein und parst ihn als JSON (max. 1 MB). */
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    let tooBig = false;
+    const LIMIT = 1024 * 1024;
+    req.on('data', (chunk) => {
+      if (tooBig) return;
+      body += chunk;
+      if (body.length > LIMIT) {
+        tooBig = true;
+        reject(new Error('Payload zu groß'));
+      }
+    });
+    req.on('end', () => {
+      if (tooBig) return;
+      if (!body) return resolve({});
+      try {
+        resolve(JSON.parse(body));
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
 }
 
 function sendFile(res, filePath) {
@@ -217,6 +246,239 @@ function runTool(id, res) {
 }
 
 // -------------------------------------------------------------
+// Auth- und Daten-API
+// -------------------------------------------------------------
+//
+// Sicherheitshinweise (bewusste Entscheidungen für dieses lokale Tool ohne
+// 2FA-/Brute-Force-Anforderung):
+//  - Passwort-Hashing über crypto.scrypt (lib/auth.js), Vergleich mit
+//    timingSafeEqual.
+//  - Session-Cookie ist HttpOnly + SameSite=Strict. Dadurch tragen
+//    Cross-Site-Requests das Cookie gar nicht erst mit – das reicht als
+//    CSRF-Schutz für dieses Bedrohungsmodell, ein zusätzliches CSRF-Token
+//    wäre hier unnötige Komplexität.
+//  - Login liefert bei falschem Nutzernamen UND falschem Passwort dieselbe
+//    generische Fehlermeldung, um Username-Enumeration zu vermeiden.
+//  - Admin-Rechte werden bei jedem Request neu aus der DB gelesen (nicht aus
+//    dem Cookie), damit ein deaktivierter/entfernter Admin sofort die Rechte
+//    verliert.
+
+const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
+const PASSWORD_MIN_LEN = 8;
+const DATA_KEY_RE = /^[a-zA-Z0-9_-]{1,64}$/;
+
+function knownToolIds() {
+  return new Set(discoverTools().map((t) => t.id));
+}
+
+async function handleAuthAndDataRoutes(req, res, pathname, method) {
+  // --- Registrierung ---
+  if (pathname === '/api/auth/register' && method === 'POST') {
+    const body = await readJsonBody(req);
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+    if (!USERNAME_RE.test(username)) {
+      sendJson(res, 400, { ok: false, error: 'Ungültiger Benutzername (3–32 Zeichen, Buchstaben/Zahlen/._-).' });
+      return true;
+    }
+    if (password.length < PASSWORD_MIN_LEN) {
+      sendJson(res, 400, { ok: false, error: `Passwort muss mindestens ${PASSWORD_MIN_LEN} Zeichen haben.` });
+      return true;
+    }
+    if (db.getUserByUsername(username)) {
+      sendJson(res, 409, { ok: false, error: 'Dieser Benutzername ist bereits vergeben.' });
+      return true;
+    }
+
+    const isFirstUser = db.userCount() === 0;
+    const passwordHash = auth.hashPassword(password);
+    const user = db.createUser({
+      username,
+      passwordHash,
+      role: isFirstUser ? 'admin' : 'user',
+      status: isFirstUser ? 'active' : 'pending',
+    });
+    sendJson(res, 200, {
+      ok: true,
+      status: user.status,
+      message: isFirstUser
+        ? 'Account erstellt und als erster Account automatisch als Admin freigeschaltet.'
+        : 'Account erstellt. Ein Administrator muss ihn noch freischalten, bevor du dich einloggen kannst.',
+    });
+    return true;
+  }
+
+  // --- Login ---
+  if (pathname === '/api/auth/login' && method === 'POST') {
+    const body = await readJsonBody(req);
+    const username = String(body.username || '').trim();
+    const password = String(body.password || '');
+    const genericError = 'Benutzername oder Passwort falsch.';
+
+    const user = db.getUserByUsername(username);
+    if (!user || !auth.verifyPassword(password, user.password_hash)) {
+      sendJson(res, 401, { ok: false, error: genericError });
+      return true;
+    }
+    if (user.status === 'pending') {
+      sendJson(res, 403, { ok: false, error: 'Dein Account wartet noch auf Freischaltung durch einen Administrator.' });
+      return true;
+    }
+    if (user.status !== 'active') {
+      sendJson(res, 403, { ok: false, error: 'Dieser Account ist deaktiviert.' });
+      return true;
+    }
+
+    const { cookie } = auth.createSessionForUser(user.id, req);
+    sendJson(res, 200, { ok: true, user: auth.publicUser(user) }, { 'Set-Cookie': cookie });
+    return true;
+  }
+
+  // --- Logout ---
+  if (pathname === '/api/auth/logout' && method === 'POST') {
+    const cookies = auth.parseCookies(req);
+    const sessionId = cookies[auth.SESSION_COOKIE];
+    if (sessionId) db.deleteSession(sessionId);
+    sendJson(res, 200, { ok: true }, { 'Set-Cookie': auth.buildClearCookie(req) });
+    return true;
+  }
+
+  // --- Aktuelle Session ---
+  if (pathname === '/api/auth/me' && method === 'GET') {
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 200, { loggedIn: false });
+    } else {
+      sendJson(res, 200, { loggedIn: true, user: auth.publicUser(session.user) });
+    }
+    return true;
+  }
+
+  // --- Admin: Userliste ---
+  if (pathname === '/api/admin/users' && method === 'GET') {
+    const admin = auth.requireAdmin(req);
+    if (!admin) {
+      sendJson(res, 403, { ok: false, error: 'Nur für Administratoren.' });
+      return true;
+    }
+    sendJson(res, 200, { users: db.listUsers() });
+    return true;
+  }
+
+  // --- Admin: Userstatus ändern ---
+  const statusMatch = pathname.match(/^\/api\/admin\/users\/(\d+)\/status$/);
+  if (statusMatch && method === 'POST') {
+    const admin = auth.requireAdmin(req);
+    if (!admin) {
+      sendJson(res, 403, { ok: false, error: 'Nur für Administratoren.' });
+      return true;
+    }
+    const targetId = Number(statusMatch[1]);
+    const body = await readJsonBody(req);
+    const allowed = ['active', 'rejected', 'disabled'];
+    if (!allowed.includes(body.status)) {
+      sendJson(res, 400, { ok: false, error: 'Ungültiger Status.' });
+      return true;
+    }
+    const target = db.getUserById(targetId);
+    if (!target) {
+      sendJson(res, 404, { ok: false, error: 'User nicht gefunden.' });
+      return true;
+    }
+    db.setUserStatus(targetId, body.status, admin.user.id);
+    if (body.status !== 'active') {
+      db.deleteSessionsForUser(targetId); // sofortige Sperre
+    }
+    sendJson(res, 200, { ok: true, user: db.getPublicUserById(targetId) });
+    return true;
+  }
+
+  // --- Daten-API: einzelnen Wert lesen/schreiben ---
+  const dataMatch = pathname.match(/^\/api\/data\/([^/]+)\/([^/]+)$/);
+  if (dataMatch && (method === 'GET' || method === 'PUT')) {
+    const toolId = decodeURIComponent(dataMatch[1]);
+    const key = decodeURIComponent(dataMatch[2]);
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
+      return true;
+    }
+    if (!knownToolIds().has(toolId)) {
+      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
+      return true;
+    }
+    if (!DATA_KEY_RE.test(key)) {
+      sendJson(res, 400, { ok: false, error: 'Ungültiger Schlüssel.' });
+      return true;
+    }
+
+    if (method === 'GET') {
+      const raw = db.getToolData(session.user.id, toolId, key);
+      sendJson(res, 200, { value: raw ? JSON.parse(raw) : null });
+      return true;
+    }
+
+    // PUT
+    const body = await readJsonBody(req);
+    const value = 'value' in body ? body.value : body;
+    db.putToolData(session.user.id, toolId, key, JSON.stringify(value));
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  // --- Migration: Status abfragen ---
+  const migStatusMatch = pathname.match(/^\/api\/data\/([^/]+)\/migration-status$/);
+  if (migStatusMatch && method === 'GET') {
+    const toolId = decodeURIComponent(migStatusMatch[1]);
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
+      return true;
+    }
+    if (!knownToolIds().has(toolId)) {
+      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
+      return true;
+    }
+    const decision = db.getMigrationDecision(session.user.id, toolId);
+    sendJson(res, 200, { decided: !!decision, migrated: decision ? !!decision.migrated : null });
+    return true;
+  }
+
+  // --- Migration: Entscheidung + optionale Datenübernahme ---
+  const migrateMatch = pathname.match(/^\/api\/data\/([^/]+)\/migrate$/);
+  if (migrateMatch && method === 'POST') {
+    const toolId = decodeURIComponent(migrateMatch[1]);
+    const session = auth.requireAuth(req);
+    if (!session) {
+      sendJson(res, 401, { ok: false, error: 'Bitte einloggen.' });
+      return true;
+    }
+    if (!knownToolIds().has(toolId)) {
+      sendJson(res, 400, { ok: false, error: 'Unbekanntes Tool.' });
+      return true;
+    }
+    const body = await readJsonBody(req);
+    const decision = body.decision === 'yes';
+
+    if (decision && body.payload && typeof body.payload === 'object') {
+      // Nur übernehmen, wenn für dieses Tool noch keine DB-Daten existieren,
+      // damit ein versehentlicher zweiter Aufruf nichts überschreibt.
+      if (!db.hasAnyToolData(session.user.id, toolId)) {
+        for (const [key, value] of Object.entries(body.payload)) {
+          if (!DATA_KEY_RE.test(key)) continue;
+          db.putToolData(session.user.id, toolId, key, JSON.stringify(value));
+        }
+      }
+    }
+    db.setMigrationDecision(session.user.id, toolId, decision);
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  return false;
+}
+
+// -------------------------------------------------------------
 // Router
 // -------------------------------------------------------------
 
@@ -233,6 +495,17 @@ const server = http.createServer((req, res) => {
   const runMatch = pathname.match(/^\/api\/run\/([^/]+)$/);
   if (runMatch && req.method === 'POST') {
     return runTool(decodeURIComponent(runMatch[1]), res);
+  }
+
+  // --- API: Auth & Userdaten ---
+  if (pathname.startsWith('/api/auth/') || pathname.startsWith('/api/admin/') || pathname.startsWith('/api/data/')) {
+    handleAuthAndDataRoutes(req, res, pathname, req.method).then((handled) => {
+      if (!handled) sendJson(res, 404, { ok: false, error: 'Unbekannte API-Route.' });
+    }).catch((err) => {
+      console.error('[toolbox] API-Fehler:', err.message);
+      if (!res.headersSent) sendJson(res, 400, { ok: false, error: 'Ungültige Anfrage.' });
+    });
+    return;
   }
 
   // --- Page-Tools: /tools/<id>/... aus dem Tool-Ordner ausliefern ---

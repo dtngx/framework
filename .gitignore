@@ -3,6 +3,9 @@ node_modules/
 .DS_Store
 .env
 
+# Nutzerdatenbank (Login-Daten, Passwort-Hashes, Tool-Daten der User) – nicht ins Repo
+data/
+
 # PP Pangram Sans ist kommerziell lizenziert – NICHT ins Repo (auch nicht privat weitergeben)
 public/assets/fonts/
 # Hinweis: Die KEKS-Logos (public/assets/keks-logo-*.png) sind eigene Marken-Assets

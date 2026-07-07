@@ -23,6 +23,14 @@
         <input id="search" type="search" placeholder="Tool suchen…" autocomplete="off" />
       </div>
       <button id="theme-toggle" class="icon-btn" title="Hell/Dunkel umschalten" aria-label="Theme umschalten">◐</button>
+      <div class="auth-area">
+        <button id="auth-btn" class="icon-btn" title="Anmelden" aria-label="Anmelden">👤</button>
+        <div id="auth-menu" class="auth-menu" hidden>
+          <div id="auth-menu-name" class="auth-menu-name"></div>
+          <a id="auth-menu-admin" class="auth-menu-link" href="/admin.html" hidden>Admin-Bereich</a>
+          <button id="auth-menu-logout" class="auth-menu-link">Abmelden</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -52,6 +60,31 @@
     </div>
   </div>
 
+  <!-- Modal für Login / Registrierung -->
+  <div id="auth-modal" class="modal" hidden>
+    <div class="modal-box auth-modal-box" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h2 id="auth-modal-title">Anmelden</h2>
+        <button id="auth-modal-close" class="icon-btn" aria-label="Schließen">✕</button>
+      </div>
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="chip active" type="button">Anmelden</button>
+        <button id="auth-tab-register" class="chip" type="button">Registrieren</button>
+      </div>
+      <form id="auth-form" class="auth-form">
+        <label class="auth-label">Benutzername
+          <input id="auth-username" type="text" autocomplete="username" required minlength="3" maxlength="32" />
+        </label>
+        <label class="auth-label">Passwort
+          <input id="auth-password" type="password" autocomplete="current-password" required minlength="8" />
+        </label>
+        <div id="auth-message" class="auth-message" hidden></div>
+        <button id="auth-submit" class="btn" type="submit">Anmelden</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/toolbox-client.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

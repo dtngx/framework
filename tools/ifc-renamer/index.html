@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>IFC-Renamer · KEKS Werkzeugkasten</title>
+  <script src="/toolbox-client.js"></script>
   <style>
     :root {
       --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
@@ -279,10 +280,11 @@
   // ===========================================================================
   // Zustand & UI
   // ===========================================================================
+  const TOOL_ID = 'ifc-renamer';
   const FAV_KEY = 'ifc-renamer-favorites';
   let fileName = null, fileLines = null, newline = '\r\n';
   let project = null, site = null, building = null;
-  let favorites = loadFavorites();
+  let favorites = [];
 
   const $ = (id) => document.getElementById(id);
   const F = {
@@ -381,12 +383,8 @@
     setStatus('✅ Datei heruntergeladen: ' + (fileName || 'output.ifc'), 'ok');
   }
 
-  // ---------- Favoriten (localStorage statt %APPDATA%) ----------
-  function loadFavorites() {
-    try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); }
-    catch { return []; }
-  }
-  function persistFavorites() { localStorage.setItem(FAV_KEY, JSON.stringify(favorites)); }
+  // ---------- Favoriten (Datenbank bei Login, sonst localStorage statt %APPDATA%) ----------
+  function persistFavorites() { Toolbox.saveKey(TOOL_ID, FAV_KEY, favorites, FAV_KEY); }
 
   function refreshFavSelect() {
     const sel = $('favSelect');
@@ -470,6 +468,12 @@
   $('download').addEventListener('click', downloadIfc);
 
   refreshFavSelect();
+
+  (async () => {
+    await Toolbox.maybeOfferMigration(TOOL_ID, [FAV_KEY]);
+    favorites = (await Toolbox.loadKey(TOOL_ID, FAV_KEY, FAV_KEY)) || [];
+    refreshFavSelect();
+  })();
   </script>
 </body>
 </html>

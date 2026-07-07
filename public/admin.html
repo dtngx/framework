@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin – KEKS Werkzeugkasten</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23ff4f00'/></svg>" />
+  <style>
+    .admin-wrap { max-width: 900px; margin: 0 auto; padding: 32px 28px 60px; }
+    .admin-wrap h1 { font-size: 20px; margin-bottom: 4px; }
+    .admin-hint { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+    table.users { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    table.users th, table.users td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    table.users th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .status-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+    .status-pill.active { background: var(--accent-soft); color: var(--ok); }
+    .status-pill.pending { background: var(--surface-2); color: var(--text-muted); }
+    .status-pill.disabled, .status-pill.rejected { background: var(--surface-2); color: var(--err); }
+    .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .row-actions button {
+      border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+      border-radius: 5px; padding: 5px 9px; font-size: 12px; cursor: pointer;
+    }
+    .row-actions button:hover { border-color: var(--accent); color: var(--accent-text); }
+    #denied, #loading { padding: 60px 20px; text-align: center; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a class="brand-logo" href="/" aria-label="KEKS Architekten – Startseite">
+        <img class="logo-light" src="/assets/keks-logo-black.png" alt="KEKS Architekten" />
+        <img class="logo-dark" src="/assets/keks-logo-white.png" alt="KEKS Architekten" />
+      </a>
+      <span class="brand-divider" aria-hidden="true"></span>
+      <span class="brand-product">Admin</span>
+    </div>
+    <div class="topbar-actions">
+      <a href="/" class="icon-btn" title="Zurück zur Übersicht" aria-label="Zurück">←</a>
+    </div>
+  </header>
+
+  <div class="admin-wrap">
+    <div id="loading">Lade…</div>
+    <div id="denied" hidden>
+      <p>Nur für Administratoren. <a href="/">Zur Übersicht</a></p>
+    </div>
+    <div id="content" hidden>
+      <h1>Useraccounts verwalten</h1>
+      <p class="admin-hint">Neue Registrierungen erscheinen hier als „pending“ und müssen freigeschaltet werden, bevor sich der Account einloggen kann.</p>
+      <table class="users">
+        <thead>
+          <tr><th>Benutzername</th><th>Rolle</th><th>Status</th><th>Erstellt</th><th>Aktionen</th></tr>
+        </thead>
+        <tbody id="users-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/toolbox-client.js"></script>
+  <script>
+    (function initTheme() {
+      const saved = localStorage.getItem('toolbox-theme');
+      const theme = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.dataset.theme = theme;
+    })();
+
+    const usersBody = document.getElementById('users-body');
+
+    function fmtDate(iso) {
+      if (!iso) return '–';
+      return iso.replace('T', ' ').slice(0, 16);
+    }
+
+    function actionButtons(user) {
+      const btns = [];
+      if (user.status !== 'active') btns.push(['Freischalten', 'active']);
+      if (user.status === 'pending') btns.push(['Ablehnen', 'rejected']);
+      if (user.status === 'active') btns.push(['Deaktivieren', 'disabled']);
+      if (user.status === 'disabled' || user.status === 'rejected') btns.push(['Reaktivieren', 'active']);
+      return btns;
+    }
+
+    async function setStatus(id, status) {
+      const res = await fetch(`/api/admin/users/${id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) await loadUsers();
+      else alert('Aktion fehlgeschlagen.');
+    }
+
+    async function loadUsers() {
+      const res = await fetch('/api/admin/users');
+      if (res.status === 403) throw new Error('denied');
+      const data = await res.json();
+      usersBody.innerHTML = '';
+      for (const user of data.users) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${user.username}</td>
+          <td>${user.role}</td>
+          <td><span class="status-pill ${user.status}">${user.status}</span></td>
+          <td>${fmtDate(user.created_at)}</td>
+          <td class="row-actions"></td>
+        `;
+        const actionsCell = tr.querySelector('.row-actions');
+        for (const [label, status] of actionButtons(user)) {
+          const btn = document.createElement('button');
+          btn.textContent = label;
+          btn.addEventListener('click', () => setStatus(user.id, status));
+          actionsCell.appendChild(btn);
+        }
+        usersBody.appendChild(tr);
+      }
+    }
+
+    (async () => {
+      const session = await Toolbox.getSession();
+      if (!session.loggedIn || session.user.role !== 'admin') {
+        document.getElementById('loading').hidden = true;
+        document.getElementById('denied').hidden = false;
+        return;
+      }
+      try {
+        await loadUsers();
+        document.getElementById('loading').hidden = true;
+        document.getElementById('content').hidden = false;
+      } catch (_) {
+        document.getElementById('loading').hidden = true;
+        document.getElementById('denied').hidden = false;
+      }
+    })();
+  </script>
+</body>
+</html>

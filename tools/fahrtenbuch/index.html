@@ -6,6 +6,7 @@
 <title>Fahrtenbuch · KEKS Werkzeugkasten</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="/toolbox-client.js"></script>
 <style>
   :root {
     --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
@@ -189,16 +190,17 @@
 
 <script>
 // ---------- State ----------
-let customers = JSON.parse(localStorage.getItem('fb_customers') || '[]');
-let trips = JSON.parse(localStorage.getItem('fb_trips') || '[]');
-let settings = JSON.parse(localStorage.getItem('fb_settings') || '{}');
-let distanceCache = JSON.parse(localStorage.getItem('fb_distance_cache') || '{}');
+const TOOL_ID = 'fahrtenbuch';
+let customers = [];
+let trips = [];
+let settings = {};
+let distanceCache = {};
 
 function save(){
-  localStorage.setItem('fb_customers', JSON.stringify(customers));
-  localStorage.setItem('fb_trips', JSON.stringify(trips));
-  localStorage.setItem('fb_settings', JSON.stringify(settings));
-  localStorage.setItem('fb_distance_cache', JSON.stringify(distanceCache));
+  Toolbox.saveKey(TOOL_ID, 'fb_customers', customers, 'fb_customers');
+  Toolbox.saveKey(TOOL_ID, 'fb_trips', trips, 'fb_trips');
+  Toolbox.saveKey(TOOL_ID, 'fb_settings', settings, 'fb_settings');
+  Toolbox.saveKey(TOOL_ID, 'fb_distance_cache', distanceCache, 'fb_distance_cache');
 }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
@@ -569,12 +571,21 @@ function formatDate(iso){
 }
 
 // ---------- Init ----------
-renderHomes();
-renderKunden();
-renderFahrten();
-refreshEndpointSelects();
-refreshJahrSelect();
-renderUebersicht();
+async function bootstrap(){
+  await Toolbox.maybeOfferMigration(TOOL_ID, ['fb_customers','fb_trips','fb_settings','fb_distance_cache']);
+  customers = (await Toolbox.loadKey(TOOL_ID, 'fb_customers', 'fb_customers')) || [];
+  trips = (await Toolbox.loadKey(TOOL_ID, 'fb_trips', 'fb_trips')) || [];
+  settings = (await Toolbox.loadKey(TOOL_ID, 'fb_settings', 'fb_settings')) || {};
+  distanceCache = (await Toolbox.loadKey(TOOL_ID, 'fb_distance_cache', 'fb_distance_cache')) || {};
+
+  renderHomes();
+  renderKunden();
+  renderFahrten();
+  refreshEndpointSelects();
+  refreshJahrSelect();
+  renderUebersicht();
+}
+bootstrap();
 </script>
 </body>
 </html>
