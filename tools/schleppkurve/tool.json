@@ -1,11 +1,11 @@
 {
   "name": "Schleppkurve",
-  "description": "Visuelle Schleppkurve für zweiachsige Fahrzeuge: interaktiv fahren, überstrichene Fläche, Reifen- und Kantenspuren. Eigene Fahrzeuge, Begrenzungen mit Snapping (auch Betrachtungsrahmen und punktuelle Stützen), Lageplan-Import (Bild, PDF, DXF) mit maßstäblicher Kalibrierung, Routenplaner/Simulation (Start und Ziel setzen, verschieb-/drehbar, automatischer kollisionsfreier Weg, vor/zurück) sowie Export nach DXF (getrennte Layer) und Vektor-PDF.",
+  "description": "Visuelle Schleppkurve für zweiachsige Fahrzeuge: interaktiv fahren, überstrichene Fläche, Reifen- und Kantenspuren. Eigene Fahrzeuge, Begrenzungen mit Snapping (auch Betrachtungsrahmen und punktuelle Stützen), Lageplan-Import (Bild, PDF, DXF) mit maßstäblicher Kalibrierung, Routenplaner/Simulation (Start und Ziel setzen oder aktuelle Fahrzeugposition übernehmen, verschieb-/drehbar, hindernisbewusste Suche mit Live-Visualisierung, automatischer kollisionsfreier Weg, vor/zurück) sowie Export nach DXF (getrennte Layer) und Vektor-PDF.",
   "category": "Verkehr",
   "icon": "🚚",
   "type": "page",
   "entry": "index.html",
-  "version": "0.10",
+  "version": "0.11",
   "tags": ["Schleppkurve", "Befahrbarkeit", "RBSV", "Zufahrt"],
   "author": "KEKS ARCHITEKTEN"
 }
