@@ -82,6 +82,7 @@
       <h1>IFC<span class="accent">-Renamer</span></h1>
       <span class="ver">v1.0</span>
       <span class="sub">Projekt · Standort · Gebäude · Koordinaten</span>
+      <button id="switchProject" class="btn" hidden>⇄ Projekt wechseln</button>
     </div>
 
     <div class="panel">
@@ -304,17 +305,28 @@
     };
   }
 
-  // Wird direkt nach dem Öffnen einer Datei angewandt: übernimmt zuletzt
-  // gespeicherte Namen/Koordinaten über die aus der Datei gelesenen Werte,
-  // damit man nach erneutem Hochladen (z. B. nächste Revision) nicht wieder
-  // bei Null anfängt. Die Datei selbst wird dabei nicht verändert/gespeichert.
+  // Wird nach dem Öffnen einer Datei und beim Projektwechsel angewandt:
+  // setzt die Felder zunächst auf die aus der Datei gelesenen Rohwerte zurück
+  // (damit bei einem Projektwechsel keine Reste des vorherigen Projekts stehen
+  // bleiben) und übernimmt dann die zuletzt gespeicherten Namen/Koordinaten
+  // darüber, damit man nach erneutem Hochladen (z. B. nächste Revision) nicht
+  // wieder bei Null anfängt. Die Datei selbst wird dabei nicht verändert.
   function applyResumedValues() {
-    if (!resumedValues) return;
-    if (project && resumedValues.projectName) F.projectName.value = resumedValues.projectName;
-    if (site && resumedValues.siteName) F.siteName.value = resumedValues.siteName;
-    if (building && resumedValues.buildingName) F.buildingName.value = resumedValues.buildingName;
+    if (project) F.projectName.value = project.name;
     if (site) {
-      coordFields.forEach(k => { if (resumedValues[k] !== undefined && resumedValues[k] !== '') F[k].value = resumedValues[k]; });
+      F.siteName.value = site.name;
+      F.latDeg.value = site.lat.deg; F.latMin.value = site.lat.min; F.latSec.value = site.lat.sec; F.latMs.value = site.lat.ms;
+      F.lonDeg.value = site.lon.deg; F.lonMin.value = site.lon.min; F.lonSec.value = site.lon.sec; F.lonMs.value = site.lon.ms;
+    }
+    if (building) F.buildingName.value = building.name;
+
+    if (resumedValues) {
+      if (project && resumedValues.projectName) F.projectName.value = resumedValues.projectName;
+      if (site && resumedValues.siteName) F.siteName.value = resumedValues.siteName;
+      if (building && resumedValues.buildingName) F.buildingName.value = resumedValues.buildingName;
+      if (site) {
+        coordFields.forEach(k => { if (resumedValues[k] !== undefined && resumedValues[k] !== '') F[k].value = resumedValues[k]; });
+      }
     }
     updateDecimal();
   }
@@ -522,9 +534,21 @@
       const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — IFC-Renamer' });
       currentProjectId = picked.project.id;
       resumedValues = picked.project.data || null;
+      document.getElementById('switchProject').hidden = false;
+      document.getElementById('switchProject').addEventListener('click', switchProject);
     }
     ready = true;
   }
+
+  async function switchProject() {
+    const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wechseln — IFC-Renamer' });
+    currentProjectId = picked.project.id;
+    resumedValues = picked.project.data || null;
+    // Ist bereits eine Datei offen, werden die neuen Projektwerte sofort
+    // angewandt; sonst greifen sie automatisch beim nächsten Datei-Öffnen.
+    if (fileLines) applyResumedValues();
+  }
+
   bootstrap();
   </script>
 </body>
