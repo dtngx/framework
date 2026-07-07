@@ -19,7 +19,7 @@ Dann im Browser öffnen: **http://localhost:4000**
 ### Start mit Docker
 
 ```bash
-cp .env.example .env   # anpassen: PORT, ADMIN_USERNAME, ADMIN_PASSWORD
+cp .env.example .env   # anpassen: PORT, DATA_HOST_PATH, ADMIN_USERNAME, ADMIN_PASSWORD
 docker compose up --build
 ```
 
@@ -33,10 +33,15 @@ Dann im Browser öffnen: **http://localhost:4000** (bzw. der in `.env` gesetzte 
 - Das Passwort wird **nur beim ersten Start** übernommen. Ändert man es später
   im Dashboard, bleibt diese Änderung auch nach einem Neustart des Containers
   bestehen – Env-Variablen überschreiben kein bestehendes Passwort.
-- Die SQLite-Datenbank liegt über das Volume `./data:/app/data` außerhalb des
-  Containers und übersteht damit Neustarts und Image-Updates.
+- Die SQLite-Datenbank liegt über das Volume `${DATA_HOST_PATH:-./data}:/app/data`
+  außerhalb des Containers und übersteht damit Neustarts und Image-Updates.
+  `DATA_HOST_PATH` in der `.env` frei wählbar, z. B. für eine Synology-NAS:
+  `DATA_HOST_PATH=/volume1/docker/werkzeugkasten/data`.
 - Ohne Docker Compose reicht auch direkt `docker build -t keks-werkzeugkasten .`
-  und `docker run -p 4000:4000 -v $(pwd)/data:/app/data -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD=... keks-werkzeugkasten`.
+  und `docker run -p 4000:4000 -v /volume1/docker/werkzeugkasten/data:/app/data -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD=... keks-werkzeugkasten`.
+- Läuft die App **ohne** Docker direkt per `node server.js`, lässt sich der
+  Datenpfad stattdessen über `DATA_DIR=/pfad/zu/daten node server.js`
+  festlegen (Standard: `data/` im Projektordner).
 
 ## Idee
 

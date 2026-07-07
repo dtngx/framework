@@ -8,5 +8,5 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     volumes:
-      - ./data:/app/data
+      - ${DATA_HOST_PATH:-./data}:/app/data
     restart: unless-stopped
