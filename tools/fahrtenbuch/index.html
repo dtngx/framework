@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fahrtenbuch · KEKS Werkzeugkasten</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root {
+    --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
+    --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+      --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+  a.back:hover { color: var(--accent); }
+  .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 8px; flex-wrap: wrap; }
+  .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+  .head h1 .accent { color: var(--accent); }
+  .ver { font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 4px; padding: 1px 6px; }
+  .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+  .lead { color: var(--muted); font-size: 13.5px; margin-bottom: 20px; max-width: 720px; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .tab {
+    padding: 9px 14px; cursor: pointer; font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .04em; font-weight: 600;
+    border-bottom: 2px solid transparent; user-select: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; display: none; }
+  .panel.active { display: block; }
+
+  label { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; margin: 12px 0 6px; }
+  label:first-child { margin-top: 0; }
+  input, select {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    padding: 9px 10px; border-radius: 7px; font-family: inherit; font-size: 14px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  input[readonly] { color: var(--muted); }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+
+  .btn {
+    font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); padding: 9px 16px; border-radius: 7px; font-size: 13px; transition: all .15s; font-weight: 600;
+    margin-top: 14px;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { color: #fff; filter: brightness(1.05); }
+  .btn.danger-link { background: none; border: 0; color: var(--muted); padding: 2px 6px; margin: 0; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  .btn.danger-link:hover { color: var(--err); border: 0; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { font-variant-numeric: tabular-nums; }
+  tfoot td { font-weight: 700; border-top: 2px solid var(--text); border-bottom: none; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+  .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  .checkbox-row input { width: auto; }
+  .actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+
+  @media (max-width: 700px) {
+    .row { flex-direction: column; }
+    table, thead, tbody, tfoot, th, td, tr { display: block; }
+    thead tr { display: none; }
+    tbody tr, tfoot tr { border-bottom: 1px solid var(--border); padding: 8px 0; }
+    td { border-bottom: none; padding: 2px 0; }
+    td::before { content: attr(data-label); display: block; font-size: 10px; text-transform: uppercase; color: var(--muted); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+  <div class="head">
+    <h1>Fahrten<span class="accent">buch</span></h1>
+    <span class="ver">v1.0</span>
+    <span class="sub">Kunden · Fahrten · Jahresübersicht</span>
+  </div>
+  <p class="lead">
+    Kunden und Standardadressen anlegen, Fahrten erfassen – die Strecke wird automatisch über
+    OpenStreetMap (Nominatim/OSRM) ermittelt. Jahresübersicht mit CSV- und PDF-Export.
+  </p>
+
+  <div class="tabs">
+    <div class="tab" data-tab="adressen">Standardadressen</div>
+    <div class="tab active" data-tab="kunden">Kunden</div>
+    <div class="tab" data-tab="fahrt">Fahrt anlegen</div>
+    <div class="tab" data-tab="uebersicht">Jahresübersicht</div>
+  </div>
+
+  <!-- STANDARDADRESSEN -->
+  <div class="panel" id="panel-adressen">
+    <div class="row">
+      <div><label>Bezeichnung</label><input id="a-label" placeholder="z.B. Büro, Zuhause"></div>
+      <div><label>Adresse</label><input id="a-addr" placeholder="Straße Hausnr, PLZ Ort"></div>
+    </div>
+    <button class="btn primary" onclick="addHome()">Standardadresse speichern</button>
+    <div class="status" id="a-status"></div>
+    <table>
+      <thead><tr><th>Bezeichnung</th><th>Adresse</th><th></th></tr></thead>
+      <tbody id="a-table"></tbody>
+    </table>
+  </div>
+
+  <!-- KUNDEN -->
+  <div class="panel active" id="panel-kunden">
+    <div class="row">
+      <div><label>Kundenname</label><input id="k-name" placeholder="z.B. Familie Müller"></div>
+      <div><label>Adresse</label><input id="k-addr" placeholder="Straße Hausnr, PLZ Ort"></div>
+    </div>
+    <button class="btn primary" onclick="addCustomer()">Kunde speichern</button>
+    <div class="status" id="k-status"></div>
+    <table>
+      <thead><tr><th>Kunde</th><th>Adresse</th><th></th></tr></thead>
+      <tbody id="k-table"></tbody>
+    </table>
+  </div>
+
+  <!-- FAHRT -->
+  <div class="panel" id="panel-fahrt">
+    <div class="row">
+      <div>
+        <label>Start</label>
+        <select id="f-start" onchange="onEndpointChange('start')"></select>
+        <input id="f-start-manuell" style="display:none; margin-top:8px;" placeholder="Adresse eingeben">
+      </div>
+      <div>
+        <label>Ziel</label>
+        <select id="f-ziel" onchange="onEndpointChange('ziel')"></select>
+        <input id="f-ziel-manuell" style="display:none; margin-top:8px;" placeholder="Adresse eingeben">
+      </div>
+    </div>
+
+    <div class="hint" id="f-distanz-hint"></div>
+
+    <div class="row">
+      <div><label>Datum</label><input type="date" id="f-datum"></div>
+      <div><label>Fahrtgrund</label><input id="f-grund" list="grund-liste" placeholder="z.B. Baustellenbesuch"></div>
+    </div>
+    <datalist id="grund-liste"></datalist>
+    <div class="checkbox-row">
+      <input type="checkbox" id="f-hinundzurueck" checked>
+      <label style="margin:0;">Hin- und Rückfahrt</label>
+    </div>
+    <button class="btn primary" onclick="addTrip()">Fahrt speichern</button>
+    <div class="status" id="f-status"></div>
+    <table>
+      <thead><tr><th>Datum</th><th>Start</th><th>Ziel</th><th>Grund</th><th>Hin+Zurück</th><th class="num">km</th><th></th></tr></thead>
+      <tbody id="f-table"></tbody>
+    </table>
+  </div>
+
+  <!-- UEBERSICHT -->
+  <div class="panel" id="panel-uebersicht">
+    <label>Jahr</label>
+    <select id="u-jahr" onchange="renderUebersicht()"></select>
+    <table>
+      <thead><tr><th>Datum</th><th>Start</th><th>Ziel</th><th>Grund</th><th>Hin+Zurück</th><th class="num">km</th></tr></thead>
+      <tbody id="u-table"></tbody>
+      <tfoot><tr><td colspan="5">Gesamt</td><td id="u-summe">0 km</td></tr></tfoot>
+    </table>
+    <div class="actions">
+      <button class="btn" onclick="exportCSV()">⬇ Als CSV exportieren</button>
+      <button class="btn" onclick="exportPDF()">⬇ Als PDF exportieren</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- State ----------
+let customers = JSON.parse(localStorage.getItem('fb_customers') || '[]');
+let trips = JSON.parse(localStorage.getItem('fb_trips') || '[]');
+let settings = JSON.parse(localStorage.getItem('fb_settings') || '{}');
+let distanceCache = JSON.parse(localStorage.getItem('fb_distance_cache') || '{}');
+
+function save(){
+  localStorage.setItem('fb_customers', JSON.stringify(customers));
+  localStorage.setItem('fb_trips', JSON.stringify(trips));
+  localStorage.setItem('fb_settings', JSON.stringify(settings));
+  localStorage.setItem('fb_distance_cache', JSON.stringify(distanceCache));
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+    if(tab.dataset.tab==='fahrt') refreshEndpointSelects();
+    if(tab.dataset.tab==='uebersicht') { refreshJahrSelect(); renderUebersicht(); }
+  });
+});
+
+// ---------- Geocoding / Routing (OSM) ----------
+// Hinweis: Nominatim erlaubt max. 1 Anfrage/Sekunde. Für gelegentliche private
+// Nutzung unproblematisch, aber nicht für Massenabfragen geeignet.
+async function geocode(address){
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(address);
+  const res = await fetch(url);
+  const data = await res.json();
+  if(!data.length) throw new Error('Adresse nicht gefunden: ' + address);
+  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+}
+
+async function routeDistanceKm(a, b){
+  const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if(!data.routes || !data.routes.length) throw new Error('Route nicht berechenbar');
+  return Math.round(data.routes[0].distance / 1000);
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+// Gecachte Distanzermittlung zwischen zwei Adress-Strings (einfache Strecke, gerundet)
+async function getDistanceKm(addrA, addrB){
+  const key = addrA.trim().toLowerCase() + '=>' + addrB.trim().toLowerCase();
+  if(distanceCache[key] !== undefined) return distanceCache[key];
+  const a = await geocode(addrA);
+  await sleep(1100); // Rate-Limit Nominatim
+  const b = await geocode(addrB);
+  const km = await routeDistanceKm(a, b);
+  distanceCache[key] = km;
+  save();
+  return km;
+}
+
+// ---------- Standardadressen (mehrere möglich) ----------
+function addHome(){
+  const label = document.getElementById('a-label').value.trim();
+  const addr = document.getElementById('a-addr').value.trim();
+  const status = document.getElementById('a-status');
+  if(!label || !addr){ status.textContent = 'Bitte Bezeichnung und Adresse angeben.'; return; }
+  if(!settings.homes) settings.homes = [];
+  settings.homes.push({ id: uid(), label, addr });
+  save();
+  document.getElementById('a-label').value = '';
+  document.getElementById('a-addr').value = '';
+  status.textContent = 'Standardadresse gespeichert.';
+  renderHomes();
+  refreshEndpointSelects();
+}
+
+function deleteHome(id){
+  settings.homes = (settings.homes||[]).filter(h=>h.id!==id);
+  save();
+  renderHomes();
+  refreshEndpointSelects();
+}
+
+function renderHomes(){
+  const tbody = document.getElementById('a-table');
+  tbody.innerHTML = (settings.homes||[]).map(h=>`
+    <tr>
+      <td data-label="Bezeichnung">${escapeHtml(h.label)}</td>
+      <td data-label="Adresse">${escapeHtml(h.addr)}</td>
+      <td><button class="btn danger-link" onclick="deleteHome('${h.id}')">löschen</button></td>
+    </tr>`).join('');
+}
+
+// ---------- Kunden ----------
+function addCustomer(){
+  const name = document.getElementById('k-name').value.trim();
+  const addr = document.getElementById('k-addr').value.trim();
+  const status = document.getElementById('k-status');
+  if(!name || !addr){ status.textContent = 'Bitte Name und Adresse angeben.'; return; }
+
+  customers.push({ id: uid(), name, addr });
+  save();
+  document.getElementById('k-name').value = '';
+  document.getElementById('k-addr').value = '';
+  status.textContent = 'Kunde gespeichert.';
+  renderKunden();
+  refreshEndpointSelects();
+}
+
+function deleteCustomer(id){
+  if(!confirm('Kunde wirklich löschen? Bereits gespeicherte Fahrten bleiben unverändert.')) return;
+  customers = customers.filter(c=>c.id!==id);
+  save();
+  renderKunden();
+  refreshEndpointSelects();
+}
+
+function renderKunden(){
+  const tbody = document.getElementById('k-table');
+  tbody.innerHTML = customers.map(c=>`
+    <tr>
+      <td data-label="Kunde">${escapeHtml(c.name)}</td>
+      <td data-label="Adresse">${escapeHtml(c.addr)}</td>
+      <td><button class="btn danger-link" onclick="deleteCustomer('${c.id}')">löschen</button></td>
+    </tr>`).join('');
+}
+
+// ---------- Fahrten: Start/Ziel frei wählbar ----------
+function endpointOptions(){
+  let opts = '';
+  (settings.homes||[]).forEach(h=>{
+    opts += `<option value="home:${h.id}">${escapeHtml(h.label)} (${escapeHtml(h.addr)})</option>`;
+  });
+  customers.forEach(c=>{
+    opts += `<option value="kunde:${c.id}">${escapeHtml(c.name)}</option>`;
+  });
+  opts += `<option value="manuell">Andere Adresse...</option>`;
+  return opts;
+}
+
+function refreshEndpointSelects(){
+  document.getElementById('f-start').innerHTML = endpointOptions();
+  document.getElementById('f-ziel').innerHTML = endpointOptions();
+  onEndpointChange('start');
+  onEndpointChange('ziel');
+  refreshGrundListe();
+}
+
+function onEndpointChange(which){
+  const sel = document.getElementById('f-' + which);
+  const manuellInput = document.getElementById('f-' + which + '-manuell');
+  manuellInput.style.display = sel.value === 'manuell' ? 'block' : 'none';
+  document.getElementById('f-distanz-hint').textContent = '';
+}
+
+function resolveAddress(which){
+  const sel = document.getElementById('f-' + which);
+  if(sel.value === 'manuell') return document.getElementById('f-' + which + '-manuell').value.trim();
+  if(sel.value.startsWith('home:')){
+    const id = sel.value.slice(5);
+    const h = (settings.homes||[]).find(h=>h.id===id);
+    return h ? h.addr : '';
+  }
+  if(sel.value.startsWith('kunde:')){
+    const id = sel.value.slice(6);
+    const c = customers.find(c=>c.id===id);
+    return c ? c.addr : '';
+  }
+  return '';
+}
+
+function resolveLabel(which){
+  const sel = document.getElementById('f-' + which);
+  if(sel.value === 'manuell') return document.getElementById('f-' + which + '-manuell').value.trim();
+  if(sel.value.startsWith('home:')){
+    const id = sel.value.slice(5);
+    const h = (settings.homes||[]).find(h=>h.id===id);
+    return h ? h.label : '';
+  }
+  if(sel.value.startsWith('kunde:')){
+    const id = sel.value.slice(6);
+    const c = customers.find(c=>c.id===id);
+    return c ? c.name : '';
+  }
+  return '';
+}
+
+function refreshGrundListe(){
+  const grunde = [...new Set(trips.map(t=>t.grund).filter(Boolean))];
+  document.getElementById('grund-liste').innerHTML = grunde.map(g=>`<option value="${escapeHtml(g)}">`).join('');
+}
+
+async function addTrip(){
+  const status = document.getElementById('f-status');
+  const hint = document.getElementById('f-distanz-hint');
+  const datum = document.getElementById('f-datum').value;
+  const grund = document.getElementById('f-grund').value.trim();
+  const hz = document.getElementById('f-hinundzurueck').checked;
+  const startLabel = resolveLabel('start');
+  const zielLabel = resolveLabel('ziel');
+  const startAddr = resolveAddress('start');
+  const zielAddr = resolveAddress('ziel');
+
+  if(!startLabel || !zielLabel){ status.textContent = 'Bitte Start und Ziel angeben.'; return; }
+  if(!datum){ status.textContent = 'Bitte Datum angeben.'; return; }
+
+  status.textContent = 'Berechne Strecke...';
+  try{
+    const kmEinzel = await getDistanceKm(startAddr, zielAddr);
+    const km = hz ? kmEinzel*2 : kmEinzel;
+    trips.push({ id: uid(), datum, startLabel, zielLabel, grund, hz, kmEinzel, km });
+    save();
+    hint.textContent = `Strecke: ${kmEinzel} km einfach → ${km} km gesamt${hz?' (Hin & Zurück)':''}`;
+    status.textContent = `Fahrt gespeichert: ${km} km.`;
+    document.getElementById('f-grund').value = '';
+    renderFahrten();
+    refreshGrundListe();
+  }catch(e){
+    status.textContent = 'Fehler: ' + e.message;
+  }
+}
+
+let editingTripId = null;
+
+function editTrip(id){
+  editingTripId = id;
+  renderFahrten();
+}
+
+function cancelEditTrip(){
+  editingTripId = null;
+  renderFahrten();
+}
+
+function saveEditTrip(id){
+  const t = trips.find(t=>t.id===id);
+  if(!t) return;
+  const datum = document.getElementById('e-datum-'+id).value;
+  const grund = document.getElementById('e-grund-'+id).value.trim();
+  const hz = document.getElementById('e-hz-'+id).checked;
+  if(!datum){ alert('Bitte Datum angeben.'); return; }
+
+  const kmEinzel = t.kmEinzel !== undefined ? t.kmEinzel : (t.hz ? t.km/2 : t.km);
+  t.datum = datum;
+  t.grund = grund;
+  t.hz = hz;
+  t.kmEinzel = kmEinzel;
+  t.km = hz ? kmEinzel*2 : kmEinzel;
+  save();
+  editingTripId = null;
+  renderFahrten();
+  refreshGrundListe();
+}
+
+function deleteTrip(id){
+  trips = trips.filter(t=>t.id!==id);
+  save();
+  renderFahrten();
+}
+
+function renderFahrten(){
+  const tbody = document.getElementById('f-table');
+  const sorted = [...trips].sort((a,b)=> b.datum.localeCompare(a.datum));
+  tbody.innerHTML = sorted.map(t=>{
+    if(t.id === editingTripId){
+      return `
+    <tr>
+      <td data-label="Datum"><input type="date" id="e-datum-${t.id}" value="${t.datum}"></td>
+      <td data-label="Start">${escapeHtml(t.startLabel)}</td>
+      <td data-label="Ziel">${escapeHtml(t.zielLabel)}</td>
+      <td data-label="Grund"><input id="e-grund-${t.id}" list="grund-liste" value="${escapeHtml(t.grund||'')}"></td>
+      <td data-label="Hin+Zurück"><input type="checkbox" id="e-hz-${t.id}" ${t.hz?'checked':''} style="width:auto;"></td>
+      <td data-label="km" class="num">${t.km}</td>
+      <td>
+        <button class="btn danger-link" onclick="saveEditTrip('${t.id}')" style="color:var(--accent);">speichern</button>
+        <button class="btn danger-link" onclick="cancelEditTrip()">abbrechen</button>
+      </td>
+    </tr>`;
+    }
+    return `
+    <tr>
+      <td data-label="Datum">${formatDate(t.datum)}</td>
+      <td data-label="Start">${escapeHtml(t.startLabel)}</td>
+      <td data-label="Ziel">${escapeHtml(t.zielLabel)}</td>
+      <td data-label="Grund">${escapeHtml(t.grund||'')}</td>
+      <td data-label="Hin+Zurück">${t.hz?'ja':'nein'}</td>
+      <td data-label="km" class="num">${t.km}</td>
+      <td>
+        <button class="btn danger-link" onclick="editTrip('${t.id}')">bearbeiten</button>
+        <button class="btn danger-link" onclick="deleteTrip('${t.id}')">löschen</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ---------- Jahresübersicht ----------
+function refreshJahrSelect(){
+  const years = [...new Set(trips.map(t=>t.datum.slice(0,4)))].sort((a,b)=>b-a);
+  const sel = document.getElementById('u-jahr');
+  const current = sel.value;
+  sel.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(years.includes(current)) sel.value = current;
+}
+
+function getYearTrips(){
+  const year = document.getElementById('u-jahr').value;
+  return trips.filter(t=>t.datum.startsWith(year)).sort((a,b)=>a.datum.localeCompare(b.datum));
+}
+
+function renderUebersicht(){
+  const list = getYearTrips();
+  const tbody = document.getElementById('u-table');
+  tbody.innerHTML = list.map(t=>`
+    <tr>
+      <td data-label="Datum">${formatDate(t.datum)}</td>
+      <td data-label="Start">${escapeHtml(t.startLabel)}</td>
+      <td data-label="Ziel">${escapeHtml(t.zielLabel)}</td>
+      <td data-label="Grund">${escapeHtml(t.grund||'')}</td>
+      <td data-label="Hin+Zurück">${t.hz?'ja':'nein'}</td>
+      <td data-label="km" class="num">${t.km}</td>
+    </tr>`).join('');
+  const summe = list.reduce((s,t)=>s+t.km,0);
+  document.getElementById('u-summe').textContent = summe + ' km';
+}
+
+// ---------- Export ----------
+function exportCSV(){
+  const list = getYearTrips();
+  const year = document.getElementById('u-jahr').value;
+  let csv = 'Datum;Start;Ziel;Grund;Hin und Zurueck;km\n';
+  list.forEach(t=>{
+    csv += `${formatDate(t.datum)};${csvEscape(t.startLabel)};${csvEscape(t.zielLabel)};${csvEscape(t.grund||'')};${t.hz?'ja':'nein'};${t.km}\n`;
+  });
+  const summe = list.reduce((s,t)=>s+t.km,0);
+  csv += `;;;;Gesamt;${summe}\n`;
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  downloadBlob(blob, `Fahrtenuebersicht_${year}.csv`);
+}
+
+function exportPDF(){
+  const list = getYearTrips();
+  const year = document.getElementById('u-jahr').value;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text(`Fahrtenübersicht ${year}`, 14, 16);
+  const rows = list.map(t=>[formatDate(t.datum), t.startLabel, t.zielLabel, t.grund||'', t.hz?'ja':'nein', t.km+' km']);
+  const summe = list.reduce((s,t)=>s+t.km,0);
+  rows.push(['', '', '', '', 'Gesamt', summe+' km']);
+  doc.autoTable({
+    startY: 22,
+    head: [['Datum','Start','Ziel','Grund','Hin+Zurück','km']],
+    body: rows,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [255,79,0] },
+  });
+  doc.save(`Fahrtenuebersicht_${year}.pdf`);
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---------- Helpers ----------
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function csvEscape(str){
+  if(/[;"\n]/.test(str)) return '"' + str.replace(/"/g,'""') + '"';
+  return str;
+}
+function formatDate(iso){
+  const [y,m,d] = iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+// ---------- Init ----------
+renderHomes();
+renderKunden();
+renderFahrten();
+refreshEndpointSelects();
+refreshJahrSelect();
+renderUebersicht();
+</script>
+</body>
+</html>

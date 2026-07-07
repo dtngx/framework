@@ -1,0 +1,11 @@
+{
+  "name": "Fahrtenbuch",
+  "description": "Kunden, Standardadressen und Fahrten erfassen – Strecken werden automatisch via OpenStreetMap (Nominatim/OSRM) ermittelt. Jahresübersicht mit CSV- und PDF-Export.",
+  "category": "Verwaltung",
+  "icon": "🚙",
+  "type": "page",
+  "entry": "index.html",
+  "version": "1.0",
+  "tags": ["Fahrtenbuch", "Kilometer", "Kunden", "Reisekosten"],
+  "author": "KEKS ARCHITEKTEN"
+}
