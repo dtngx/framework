@@ -73,6 +73,7 @@
     .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
     .status { font-size: 11.5px; color: var(--muted); text-align: right; margin-top: 6px; min-height: 16px; }
   </style>
+  <script src="/toolbox-client.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -98,19 +99,12 @@
   <script>
   'use strict';
 
+  const TOOL_ID = 'bauamt-links';
   const STORAGE_KEY = 'bauamt-links-data';
 
   function uid() { return Math.random().toString(36).slice(2, 10); }
 
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch (e) { /* ignore, start fresh */ }
-    return { amts: [] };
-  }
-
-  let data = load();
+  let data = { amts: [] };
   const openIds = new Set();
   let editingAmtId = null;
 
@@ -122,9 +116,9 @@
   function save() {
     statusEl.textContent = 'speichere…';
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
+    saveTimer = setTimeout(async () => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        await Toolbox.saveKey(TOOL_ID, STORAGE_KEY, data, STORAGE_KEY);
         statusEl.textContent = 'gespeichert';
         setTimeout(() => { statusEl.textContent = ''; }, 1200);
       } catch (e) {
@@ -350,7 +344,12 @@
 
   document.getElementById('add-amt').addEventListener('click', addAmt);
 
-  render();
+  async function bootstrap() {
+    await Toolbox.maybeOfferMigration(TOOL_ID, [STORAGE_KEY]);
+    data = (await Toolbox.loadKey(TOOL_ID, STORAGE_KEY, STORAGE_KEY)) || { amts: [] };
+    render();
+  }
+  bootstrap();
   </script>
 </body>
 </html>

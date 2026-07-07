@@ -19,6 +19,20 @@ const els = {
   modalStatus: document.getElementById('modal-status'),
   modalOutput: document.getElementById('modal-output'),
   modalClose: document.getElementById('modal-close'),
+  authBtn: document.getElementById('auth-btn'),
+  authMenu: document.getElementById('auth-menu'),
+  authMenuName: document.getElementById('auth-menu-name'),
+  authMenuAdmin: document.getElementById('auth-menu-admin'),
+  authMenuLogout: document.getElementById('auth-menu-logout'),
+  authModal: document.getElementById('auth-modal'),
+  authModalClose: document.getElementById('auth-modal-close'),
+  authTabLogin: document.getElementById('auth-tab-login'),
+  authTabRegister: document.getElementById('auth-tab-register'),
+  authForm: document.getElementById('auth-form'),
+  authUsername: document.getElementById('auth-username'),
+  authPassword: document.getElementById('auth-password'),
+  authMessage: document.getElementById('auth-message'),
+  authSubmit: document.getElementById('auth-submit'),
 };
 
 const TYPE_LABEL = { link: 'Link', page: 'Web-Tool', script: 'Script' };
@@ -187,6 +201,109 @@ els.search.addEventListener('input', (e) => {
   render();
 });
 
+// ---------- Auth ----------
+let authMode = 'login'; // 'login' | 'register'
+
+function setAuthMode(mode) {
+  authMode = mode;
+  els.authTabLogin.classList.toggle('active', mode === 'login');
+  els.authTabRegister.classList.toggle('active', mode === 'register');
+  document.getElementById('auth-modal-title').textContent = mode === 'login' ? 'Anmelden' : 'Registrieren';
+  els.authSubmit.textContent = mode === 'login' ? 'Anmelden' : 'Registrieren';
+  els.authPassword.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  els.authMessage.hidden = true;
+}
+
+function openAuthModal() {
+  els.authMenu.hidden = true;
+  setAuthMode('login');
+  els.authForm.reset();
+  els.authModal.hidden = false;
+  els.authUsername.focus();
+}
+function closeAuthModal() { els.authModal.hidden = true; }
+
+function showAuthMessage(text, isError) {
+  els.authMessage.hidden = false;
+  els.authMessage.textContent = text;
+  els.authMessage.className = 'auth-message ' + (isError ? 'err' : 'ok');
+}
+
+async function refreshAuthUI() {
+  const session = await Toolbox.getSession();
+  if (session.loggedIn) {
+    els.authBtn.textContent = '👤 ' + session.user.username;
+    els.authBtn.title = 'Konto';
+    els.authMenuName.textContent = session.user.username + (session.user.role === 'admin' ? ' (Admin)' : '');
+    els.authMenuAdmin.hidden = session.user.role !== 'admin';
+  } else {
+    els.authBtn.textContent = '👤';
+    els.authBtn.title = 'Anmelden';
+  }
+}
+
+els.authBtn.addEventListener('click', async () => {
+  const session = await Toolbox.getSession();
+  if (session.loggedIn) {
+    els.authMenu.hidden = !els.authMenu.hidden;
+  } else {
+    openAuthModal();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if (!els.authMenu.hidden && !els.authMenu.contains(e.target) && e.target !== els.authBtn) {
+    els.authMenu.hidden = true;
+  }
+});
+
+els.authMenuLogout.addEventListener('click', async () => {
+  await Toolbox.logout();
+  els.authMenu.hidden = true;
+  refreshAuthUI();
+});
+
+els.authTabLogin.addEventListener('click', () => setAuthMode('login'));
+els.authTabRegister.addEventListener('click', () => setAuthMode('register'));
+els.authModalClose.addEventListener('click', closeAuthModal);
+els.authModal.addEventListener('click', (e) => { if (e.target === els.authModal) closeAuthModal(); });
+
+els.authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = els.authUsername.value.trim();
+  const password = els.authPassword.value;
+  els.authSubmit.disabled = true;
+  try {
+    if (authMode === 'login') {
+      const data = await Toolbox.login(username, password);
+      if (data.ok) {
+        closeAuthModal();
+        refreshAuthUI();
+      } else {
+        showAuthMessage(data.error || 'Anmeldung fehlgeschlagen.', true);
+      }
+    } else {
+      const data = await Toolbox.register(username, password);
+      if (data.ok) {
+        showAuthMessage(data.message || 'Account erstellt.', false);
+        if (data.status === 'active') {
+          setTimeout(async () => {
+            const loginData = await Toolbox.login(username, password);
+            if (loginData.ok) { closeAuthModal(); refreshAuthUI(); }
+          }, 600);
+        }
+      } else {
+        showAuthMessage(data.error || 'Registrierung fehlgeschlagen.', true);
+      }
+    }
+  } catch (err) {
+    showAuthMessage('Server nicht erreichbar.', true);
+  } finally {
+    els.authSubmit.disabled = false;
+  }
+});
+
 // ---------- Start ----------
 initTheme();
 loadTools();
+refreshAuthUI();

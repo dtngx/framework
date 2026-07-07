@@ -107,6 +107,7 @@
     .norms strong { color: var(--text); }
     .badge { display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius:4px; padding:1px 6px; margin-left:6px; }
   </style>
+  <script src="/toolbox-client.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -1194,12 +1195,12 @@
     $('steerLbl').textContent = (steer * 180 / Math.PI).toFixed(1) + '°';
   }
 
-  // Vorlagen + eigene Fahrzeuge (localStorage)
+  // Vorlagen + eigene Fahrzeuge (Datenbank bei Login, sonst localStorage)
   const presetSel = $('preset');
+  const TOOL_ID = 'schleppkurve';
   const VKEY = 'schleppkurve-vehicles';
-  let customVehicles = loadVehicles();
-  function loadVehicles() { try { return JSON.parse(localStorage.getItem(VKEY) || '[]'); } catch { return []; } }
-  function persistVehicles() { localStorage.setItem(VKEY, JSON.stringify(customVehicles)); }
+  let customVehicles = [];
+  function persistVehicles() { Toolbox.saveKey(TOOL_ID, VKEY, customVehicles, VKEY); }
   const currentIsCustom = () => presetSel.value.startsWith('c');
   function updateDeleteBtn() {
     const custom = currentIsCustom();
@@ -1254,6 +1255,12 @@
   });
 
   rebuildVehicleSelect('p0');
+
+  (async () => {
+    await Toolbox.maybeOfferMigration(TOOL_ID, [VKEY]);
+    customVehicles = (await Toolbox.loadKey(TOOL_ID, VKEY, VKEY)) || [];
+    rebuildVehicleSelect(presetSel.value || 'p0');
+  })();
 
   // Lenkung / Speed
   $('steer').addEventListener('input', (e) => { steer = parseFloat(e.target.value) * Math.PI / 180; $('steerLbl').textContent = parseFloat(e.target.value).toFixed(1) + '°'; render(); });
