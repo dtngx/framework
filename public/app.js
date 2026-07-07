@@ -20,6 +20,7 @@ const els = {
   modalOutput: document.getElementById('modal-output'),
   modalClose: document.getElementById('modal-close'),
   authBtn: document.getElementById('auth-btn'),
+  authUsernameLabel: document.getElementById('auth-username-label'),
   authMenu: document.getElementById('auth-menu'),
   authMenuName: document.getElementById('auth-menu-name'),
   authMenuAdmin: document.getElementById('auth-menu-admin'),
@@ -231,13 +232,15 @@ function showAuthMessage(text, isError) {
 
 async function refreshAuthUI() {
   const session = await Toolbox.getSession();
+  els.authBtn.textContent = '👤';
   if (session.loggedIn) {
-    els.authBtn.textContent = '👤 ' + session.user.username;
+    els.authUsernameLabel.textContent = session.user.username;
+    els.authUsernameLabel.hidden = false;
     els.authBtn.title = 'Konto';
     els.authMenuName.textContent = session.user.username + (session.user.role === 'admin' ? ' (Admin)' : '');
     els.authMenuAdmin.hidden = session.user.role !== 'admin';
   } else {
-    els.authBtn.textContent = '👤';
+    els.authUsernameLabel.hidden = true;
     els.authBtn.title = 'Anmelden';
   }
 }

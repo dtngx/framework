@@ -116,6 +116,7 @@
       <h1>Schlepp<span class="accent">kurve</span></h1>
       <span class="ver">v0.11</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
+      <button id="switchProject" class="btn" hidden>⇄ Projekt wechseln</button>
     </div>
     <p class="hint" style="margin:0 0 4px;">
       Fahren, Spuren, überstrichene Fläche, Begrenzungen mit Snapping, Lageplan-Import
@@ -1298,25 +1299,28 @@
     });
   }
 
+  // Setzt bei fehlenden Feldern bewusst auf Standardwerte zurück (nicht nur
+  // bedingt überschreiben), damit ein Projektwechsel zur Laufzeit den Zustand
+  // des vorherigen Projekts nicht als Rest stehen lässt. Die Kamera (view)
+  // ist die einzige bewusste Ausnahme: fehlt sie im Projekt, bleibt die
+  // aktuelle Ansicht unangetastet statt ruckartig zurückzuspringen.
   async function restoreState(data) {
-    if (!data) return;
-    if (data.veh) veh = data.veh;
-    if (data.state) state = data.state;
-    if (typeof data.steer === 'number') steer = data.steer;
-    if (data.view) Object.assign(view, data.view);
-    if (Array.isArray(data.boundaries)) boundaries = data.boundaries;
-    if (data.startPose) startPose = data.startPose;
-    if (data.goalPose) goalPose = data.goalPose;
-    if (data.plannedPath) plannedPath = data.plannedPath;
-    if (typeof data.gridSnap === 'number') gridSnap = data.gridSnap;
-    if (typeof data.angleSnap === 'number') angleSnap = data.angleSnap;
-    if (data.wheelTrace) wheelTrace = data.wheelTrace;
-    if (data.cornerTrace) cornerTrace = data.cornerTrace;
-    if (Array.isArray(data.sweptQuads)) sweptQuads = data.sweptQuads;
-    // Verhindert, dass resizeStage() die wiederhergestellte Kamera-Position
-    // beim ersten Aufruf mit ihrem Standard-Ausschnitt überschreibt.
-    if (data.view) viewInit = true;
+    data = data || {};
+    veh = data.veh || { ...PRESETS[0] };
+    state = data.state || { x: 0, y: 0, theta: 0 };
+    steer = typeof data.steer === 'number' ? data.steer : 0;
+    if (data.view) { Object.assign(view, data.view); viewInit = true; }
+    boundaries = Array.isArray(data.boundaries) ? data.boundaries : [];
+    startPose = data.startPose || null;
+    goalPose = data.goalPose || null;
+    plannedPath = data.plannedPath || null;
+    gridSnap = typeof data.gridSnap === 'number' ? data.gridSnap : 0.05;
+    angleSnap = typeof data.angleSnap === 'number' ? data.angleSnap : 0;
+    wheelTrace = data.wheelTrace || { fl: [], fr: [], rl: [], rr: [] };
+    cornerTrace = data.cornerTrace || { fl: [], fr: [], rl: [], rr: [] };
+    sweptQuads = Array.isArray(data.sweptQuads) ? data.sweptQuads : [];
 
+    underlay = null;
     if (data.underlay && data.underlay.type === 'dxf') {
       underlay = { type: 'dxf', segs: data.underlay.segs, o: data.underlay.o, scale: data.underlay.scale, opacity: data.underlay.opacity };
     } else if (data.underlay && data.underlay.type === 'image') {
@@ -2172,12 +2176,24 @@
   });
 
   // Start
+  async function switchProject() {
+    const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wechseln — Schleppkurve' });
+    currentProjectId = picked.project.id;
+    await restoreState(picked.project.data);
+    fillVehicleForm();
+    repaintUnderlay();
+    repaintGhost();
+    render();
+  }
+
   async function bootstrap() {
     const session = await Toolbox.getSession();
     if (session.loggedIn) {
       const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Schleppkurve' });
       currentProjectId = picked.project.id;
       await restoreState(picked.project.data);
+      $('switchProject').hidden = false;
+      $('switchProject').addEventListener('click', switchProject);
     }
 
     fillVehicleForm();

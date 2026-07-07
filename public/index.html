@@ -24,6 +24,7 @@
       </div>
       <button id="theme-toggle" class="icon-btn" title="Hell/Dunkel umschalten" aria-label="Theme umschalten">◐</button>
       <div class="auth-area">
+        <span id="auth-username-label" class="auth-username" hidden></span>
         <button id="auth-btn" class="icon-btn" title="Anmelden" aria-label="Anmelden">👤</button>
         <div id="auth-menu" class="auth-menu" hidden>
           <div id="auth-menu-name" class="auth-menu-name"></div>
@@ -35,6 +36,17 @@
   </header>
 
   <nav id="filters" class="filters" aria-label="Kategorien"></nav>
+
+  <div class="disclaimer">
+    <span class="disclaimer-icon" aria-hidden="true">⚠</span>
+    <p>
+      Alle Tools können Fehler enthalten – für die Richtigkeit der Angaben (Berechnungen,
+      Maße, Kollisionsprüfungen etc.) wird keine Gewähr übernommen. Das Login-/User-System
+      ist ausschließlich für die interne Nutzung ausgelegt; ein öffentliches Hosting sollte
+      erst nach einer gründlichen Sicherheitsüberprüfung und einem entsprechenden Umbau des
+      Systems in Erwägung gezogen werden.
+    </p>
+  </div>
 
   <main id="content" class="content">
     <div id="grid" class="grid"></div>
