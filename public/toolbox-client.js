@@ -188,6 +188,14 @@
       const res = await fetch(`/api/projects/${encodeURIComponent(toolId)}/${id}`, { method: 'DELETE' });
       return res.ok;
     },
+    async setShared(toolId, id, shared) {
+      const res = await fetch(`/api/projects/${encodeURIComponent(toolId)}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shared }),
+      });
+      return res.ok;
+    },
   };
 
   let pickerStyleInjected = false;
@@ -211,14 +219,21 @@
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       }
       .tbx-picker-box h2 { margin: 0 0 14px; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+      .tbx-picker-section-label {
+        font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+        color: var(--text-muted, #6b6b68); margin: 14px 0 6px;
+      }
+      .tbx-picker-section-label:first-of-type { margin-top: 0; }
       .tbx-picker-list { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+      .tbx-picker-list:empty { margin-bottom: 0; }
       .tbx-picker-item {
-        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
         border: 1px solid var(--border, #e6e5e3); border-radius: 8px; padding: 10px 12px;
       }
       .tbx-picker-item-name { font-weight: 600; font-size: 14px; }
       .tbx-picker-item-date { font-size: 11.5px; color: var(--text-muted, #6b6b68); }
-      .tbx-picker-item-actions { display: flex; gap: 6px; flex: none; }
+      .tbx-picker-item-owner { color: var(--accent, #ff4f00); }
+      .tbx-picker-item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
       .tbx-picker-item-actions button, .tbx-picker-new button {
         border: 1px solid var(--border, #e6e5e3); background: var(--surface-2, #f5f5f4); color: var(--text, #111);
         border-radius: 6px; padding: 6px 10px; font-size: 12.5px; cursor: pointer;
@@ -276,7 +291,10 @@
             <h2>${options.title ? escapeHtml(options.title) : 'Projekt wählen'}</h2>
             <button type="button" class="tbx-picker-close" title="Schließen" aria-label="Schließen">✕</button>
           </div>
-          <ul class="tbx-picker-list"></ul>
+          <div class="tbx-picker-section-label">Meine Projekte</div>
+          <ul class="tbx-picker-list tbx-picker-list-mine"></ul>
+          <div class="tbx-picker-section-label tbx-picker-shared-label" hidden>Geteilt von Kollegen</div>
+          <ul class="tbx-picker-list tbx-picker-list-shared"></ul>
           <div class="tbx-picker-new">
             <input type="text" placeholder="Name für neues Projekt" maxlength="80" />
             <button type="button">+ Neues Projekt</button>
@@ -290,7 +308,9 @@
         backdrop.appendChild(box);
         document.body.appendChild(backdrop);
 
-        const listEl = box.querySelector('.tbx-picker-list');
+        const listMineEl = box.querySelector('.tbx-picker-list-mine');
+        const listSharedEl = box.querySelector('.tbx-picker-list-shared');
+        const sharedLabelEl = box.querySelector('.tbx-picker-shared-label');
         const errorEl = box.querySelector('.tbx-picker-error');
         const newInput = box.querySelector('.tbx-picker-new input');
         const newBtn = box.querySelector('.tbx-picker-new button');
@@ -328,45 +348,72 @@
           resolve({ project });
         }
 
+        function renderItem(p, mine) {
+          const li = document.createElement('li');
+          li.className = 'tbx-picker-item';
+          li.innerHTML = `
+            <div>
+              <div class="tbx-picker-item-name"></div>
+              <div class="tbx-picker-item-date"></div>
+            </div>
+            <div class="tbx-picker-item-actions">
+              <button type="button" class="tbx-picker-open">Öffnen</button>
+              <button type="button" class="tbx-picker-rename">Umbenennen</button>
+              <button type="button" class="tbx-picker-share"></button>
+              <button type="button" class="tbx-picker-delete">Löschen</button>
+            </div>
+          `;
+          li.querySelector('.tbx-picker-item-name').textContent = p.name;
+          const dateEl = li.querySelector('.tbx-picker-item-date');
+          const dateText = 'Zuletzt geändert: ' + fmtDate(p.updated_at);
+          if (mine) {
+            dateEl.textContent = dateText + (p.shared ? ' · geteilt' : '');
+          } else {
+            dateEl.innerHTML = '';
+            dateEl.append(dateText + ' · ');
+            const ownerSpan = document.createElement('span');
+            ownerSpan.className = 'tbx-picker-item-owner';
+            ownerSpan.textContent = 'von ' + p.owner_username;
+            dateEl.append(ownerSpan);
+          }
+          li.querySelector('.tbx-picker-open').addEventListener('click', () => openProject(p.id));
+          li.querySelector('.tbx-picker-rename').addEventListener('click', async () => {
+            const name = window.prompt('Neuer Projektname:', p.name);
+            if (!name || !name.trim()) return;
+            await projects.rename(toolId, p.id, name.trim());
+            refresh();
+          });
+          const shareBtn = li.querySelector('.tbx-picker-share');
+          shareBtn.textContent = p.shared ? 'Freigabe aufheben' : 'Teilen';
+          shareBtn.addEventListener('click', async () => {
+            await projects.setShared(toolId, p.id, !p.shared);
+            refresh();
+          });
+          li.querySelector('.tbx-picker-delete').addEventListener('click', async () => {
+            if (!window.confirm(`Projekt "${p.name}" wirklich löschen?`)) return;
+            await projects.remove(toolId, p.id);
+            refresh();
+          });
+          return li;
+        }
+
         async function refresh() {
           const list = await projects.list(toolId);
-          listEl.innerHTML = '';
-          if (!list.length) {
+          const mineList = list.filter((p) => p.user_id === session.user.id);
+          const sharedList = list.filter((p) => p.user_id !== session.user.id);
+
+          listMineEl.innerHTML = '';
+          if (!mineList.length) {
             const empty = document.createElement('div');
             empty.className = 'tbx-picker-empty';
-            empty.textContent = 'Noch keine Projekte vorhanden. Leg unten ein neues an.';
-            listEl.appendChild(empty);
+            empty.textContent = 'Noch keine eigenen Projekte vorhanden. Leg unten ein neues an.';
+            listMineEl.appendChild(empty);
           }
-          for (const p of list) {
-            const li = document.createElement('li');
-            li.className = 'tbx-picker-item';
-            li.innerHTML = `
-              <div>
-                <div class="tbx-picker-item-name"></div>
-                <div class="tbx-picker-item-date"></div>
-              </div>
-              <div class="tbx-picker-item-actions">
-                <button type="button" class="tbx-picker-open">Öffnen</button>
-                <button type="button" class="tbx-picker-rename">Umbenennen</button>
-                <button type="button" class="tbx-picker-delete">Löschen</button>
-              </div>
-            `;
-            li.querySelector('.tbx-picker-item-name').textContent = p.name;
-            li.querySelector('.tbx-picker-item-date').textContent = 'Zuletzt geändert: ' + fmtDate(p.updated_at);
-            li.querySelector('.tbx-picker-open').addEventListener('click', () => openProject(p.id));
-            li.querySelector('.tbx-picker-rename').addEventListener('click', async () => {
-              const name = window.prompt('Neuer Projektname:', p.name);
-              if (!name || !name.trim()) return;
-              await projects.rename(toolId, p.id, name.trim());
-              refresh();
-            });
-            li.querySelector('.tbx-picker-delete').addEventListener('click', async () => {
-              if (!window.confirm(`Projekt "${p.name}" wirklich löschen?`)) return;
-              await projects.remove(toolId, p.id);
-              refresh();
-            });
-            listEl.appendChild(li);
-          }
+          for (const p of mineList) listMineEl.appendChild(renderItem(p, true));
+
+          sharedLabelEl.hidden = sharedList.length === 0;
+          listSharedEl.innerHTML = '';
+          for (const p of sharedList) listSharedEl.appendChild(renderItem(p, false));
         }
 
         newBtn.addEventListener('click', async () => {
