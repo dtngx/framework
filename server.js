@@ -538,14 +538,22 @@ async function handleAuthAndDataRoutes(req, res, pathname, method) {
       sendJson(res, 404, { ok: false, error: 'Projekt nicht gefunden.' });
       return true;
     }
-    if (project.user_id !== session.user.id) {
+    if (project.user_id !== session.user.id && !project.shared) {
       sendJson(res, 403, { ok: false, error: 'Kein Zugriff auf dieses Projekt.' });
       return true;
     }
 
     if (method === 'GET') {
+      const owner = db.getPublicUserById(project.user_id);
       sendJson(res, 200, {
-        project: { id: project.id, name: project.name, data: JSON.parse(project.data_json) },
+        project: {
+          id: project.id,
+          name: project.name,
+          data: JSON.parse(project.data_json),
+          shared: !!project.shared,
+          mine: project.user_id === session.user.id,
+          ownerUsername: owner ? owner.username : null,
+        },
       });
       return true;
     }
@@ -562,6 +570,9 @@ async function handleAuthAndDataRoutes(req, res, pathname, method) {
       }
       if ('data' in body) {
         db.updateProjectData(projectId, JSON.stringify(body.data));
+      }
+      if (typeof body.shared === 'boolean') {
+        db.setProjectShared(projectId, body.shared);
       }
       sendJson(res, 200, { ok: true });
       return true;
