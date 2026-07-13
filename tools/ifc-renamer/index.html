@@ -532,8 +532,10 @@
     const session = await Toolbox.getSession();
     if (session.loggedIn) {
       const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — IFC-Renamer' });
-      currentProjectId = picked.project.id;
-      resumedValues = picked.project.data || null;
+      if (!picked.cancelled) {
+        currentProjectId = picked.project.id;
+        resumedValues = picked.project.data || null;
+      }
       document.getElementById('switchProject').hidden = false;
       document.getElementById('switchProject').addEventListener('click', switchProject);
     }
@@ -542,6 +544,7 @@
 
   async function switchProject() {
     const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wechseln — IFC-Renamer' });
+    if (picked.cancelled) return;
     currentProjectId = picked.project.id;
     resumedValues = picked.project.data || null;
     // Ist bereits eine Datei offen, werden die neuen Projektwerte sofort

@@ -118,8 +118,6 @@ function card(tool) {
     el.rel = 'noopener';
   } else if (tool.type === 'page') {
     el.href = `/tools/${tool.id}/${tool.entry}`;
-    el.target = '_blank';
-    el.rel = 'noopener';
   } else if (tool.type === 'script') {
     el.addEventListener('click', () => runScript(tool));
   }

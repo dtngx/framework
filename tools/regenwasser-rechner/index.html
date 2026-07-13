@@ -229,6 +229,7 @@
 
   async function switchProject() {
     const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wechseln — Regenwasser-Rechner' });
+    if (picked.cancelled) return;
     currentProjectId = picked.project.id;
     restoreState(picked.project.data);
   }
@@ -336,8 +337,12 @@
     const session = await Toolbox.getSession();
     if (session.loggedIn) {
       const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Regenwasser-Rechner' });
-      currentProjectId = picked.project.id;
-      restoreState(picked.project.data);
+      if (!picked.cancelled) {
+        currentProjectId = picked.project.id;
+        restoreState(picked.project.data);
+      } else {
+        restoreState();
+      }
       document.getElementById('switchProject').hidden = false;
       document.getElementById('switchProject').addEventListener('click', switchProject);
     } else {
