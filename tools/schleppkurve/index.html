@@ -2178,6 +2178,7 @@
   // Start
   async function switchProject() {
     const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wechseln — Schleppkurve' });
+    if (picked.cancelled) return;
     currentProjectId = picked.project.id;
     await restoreState(picked.project.data);
     fillVehicleForm();
@@ -2190,8 +2191,10 @@
     const session = await Toolbox.getSession();
     if (session.loggedIn) {
       const picked = await Toolbox.showProjectPicker(TOOL_ID, { title: 'Projekt wählen — Schleppkurve' });
-      currentProjectId = picked.project.id;
-      await restoreState(picked.project.data);
+      if (!picked.cancelled) {
+        currentProjectId = picked.project.id;
+        await restoreState(picked.project.data);
+      }
       $('switchProject').hidden = false;
       $('switchProject').addEventListener('click', switchProject);
     }

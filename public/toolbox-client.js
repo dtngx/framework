@@ -232,6 +232,19 @@
         border-radius: 6px; padding: 8px 10px; font-size: 14px;
       }
       .tbx-picker-error { color: var(--err, #d83a3a); font-size: 12.5px; margin-top: 8px; min-height: 16px; }
+      .tbx-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+      .tbx-picker-head h2 { margin: 0; }
+      .tbx-picker-close {
+        border: 1px solid var(--border, #e6e5e3); background: var(--surface-2, #f5f5f4); color: var(--text, #111);
+        border-radius: 6px; width: 28px; height: 28px; line-height: 1; font-size: 15px; cursor: pointer; flex: none;
+      }
+      .tbx-picker-close:hover { border-color: var(--accent, #ff4f00); color: var(--accent, #ff4f00); }
+      .tbx-picker-foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; border-top: 1px solid var(--border, #e6e5e3); padding-top: 14px; }
+      .tbx-picker-foot button {
+        border: 1px solid var(--border, #e6e5e3); background: var(--surface-2, #f5f5f4); color: var(--text, #111);
+        border-radius: 6px; padding: 8px 12px; font-size: 12.5px; cursor: pointer; flex: 1;
+      }
+      .tbx-picker-foot button:hover { border-color: var(--accent, #ff4f00); color: var(--accent, #ff4f00); }
     `;
     document.head.appendChild(style);
   }
@@ -244,6 +257,7 @@
   /**
    * Zeigt eine Vollbild-Projektauswahl (Öffnen/Umbenennen/Löschen/Neu anlegen).
    * Löst auf mit { anonymous: true } wenn nicht eingeloggt (zeigt dann nichts an),
+   * mit { cancelled: true } wenn der Dialog geschlossen wurde ohne ein Projekt zu wählen,
    * sonst mit { project: {id, name, data} } sobald ein Projekt gewählt/angelegt wurde.
    */
   function showProjectPicker(toolId, opts) {
@@ -258,13 +272,20 @@
         const box = document.createElement('div');
         box.className = 'tbx-picker-box';
         box.innerHTML = `
-          <h2>${options.title ? escapeHtml(options.title) : 'Projekt wählen'}</h2>
+          <div class="tbx-picker-head">
+            <h2>${options.title ? escapeHtml(options.title) : 'Projekt wählen'}</h2>
+            <button type="button" class="tbx-picker-close" title="Schließen" aria-label="Schließen">✕</button>
+          </div>
           <ul class="tbx-picker-list"></ul>
           <div class="tbx-picker-new">
             <input type="text" placeholder="Name für neues Projekt" maxlength="80" />
             <button type="button">+ Neues Projekt</button>
           </div>
           <div class="tbx-picker-error"></div>
+          <div class="tbx-picker-foot">
+            <button type="button" class="tbx-picker-cancel">Ohne Projekt fortfahren</button>
+            <button type="button" class="tbx-picker-back">Zurück zu den Werkzeugen</button>
+          </div>
         `;
         backdrop.appendChild(box);
         document.body.appendChild(backdrop);
@@ -273,12 +294,36 @@
         const errorEl = box.querySelector('.tbx-picker-error');
         const newInput = box.querySelector('.tbx-picker-new input');
         const newBtn = box.querySelector('.tbx-picker-new button');
+        const closeBtn = box.querySelector('.tbx-picker-close');
+        const cancelBtn = box.querySelector('.tbx-picker-cancel');
+        const backBtn = box.querySelector('.tbx-picker-back');
 
         function showError(msg) { errorEl.textContent = msg || ''; }
+
+        function cancel() {
+          document.removeEventListener('keydown', onKeydown);
+          document.body.removeChild(backdrop);
+          resolve({ cancelled: true });
+        }
+
+        function goBack() {
+          window.location.href = '/';
+        }
+
+        function onKeydown(e) {
+          if (e.key === 'Escape') cancel();
+        }
+
+        closeBtn.addEventListener('click', cancel);
+        cancelBtn.addEventListener('click', cancel);
+        backBtn.addEventListener('click', goBack);
+        backdrop.addEventListener('click', (e) => { if (e.target === backdrop) cancel(); });
+        document.addEventListener('keydown', onKeydown);
 
         async function openProject(id) {
           const project = await projects.get(toolId, id);
           if (!project) { showError('Projekt konnte nicht geladen werden.'); return; }
+          document.removeEventListener('keydown', onKeydown);
           document.body.removeChild(backdrop);
           resolve({ project });
         }
@@ -329,6 +374,7 @@
           if (!name) { showError('Bitte einen Namen eingeben.'); return; }
           try {
             const project = await projects.create(toolId, name);
+            document.removeEventListener('keydown', onKeydown);
             document.body.removeChild(backdrop);
             resolve({ project });
           } catch (err) {
