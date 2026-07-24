@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DIN-Normen · KEKS Werkzeugkasten</title>
+  <style>
+    :root {
+      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
+      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+    a.back:hover { color: var(--accent); }
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 8px; flex-wrap: wrap; }
+    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+    .head h1 .accent { color: var(--accent); }
+    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+    .lead { color: var(--muted); font-size: 13.5px; margin-bottom: 10px; max-width: 720px; }
+
+    .disclaimer {
+      display: flex; gap: 10px; align-items: flex-start; background: var(--accent-soft);
+      border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 20px;
+      font-size: 12.5px; color: var(--text);
+    }
+    .disclaimer .ico { flex: none; font-size: 15px; line-height: 1.3; }
+
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    input[type=search] {
+      flex: 1; min-width: 180px; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 9px 12px; border-radius: 7px; font-family: inherit; font-size: 13px; outline: none;
+    }
+    input[type=search]:focus { border-color: var(--accent); }
+
+    .btn {
+      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
+      color: var(--text); padding: 9px 16px; border-radius: 7px; font-size: 13px; transition: all .15s; font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn.primary:hover { color: #fff; filter: brightness(1.05); }
+    .btn.danger:hover { border-color: var(--err); color: var(--err); }
+    .btn-x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
+    .btn-x:hover { color: var(--err); }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+
+    .thema-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+    .thema-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; gap: 10px; }
+    .thema-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .chevron { color: var(--muted); transition: transform .15s; flex: none; }
+    .thema-card.open .chevron { transform: rotate(90deg); }
+    .thema-title { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .thema-count { color: var(--muted); font-size: 12px; flex: none; }
+    .thema-actions { display: flex; gap: 6px; flex: none; }
+    .thema-body { padding: 4px 16px 14px; border-top: 1px solid var(--border); }
+    .thema-note { font-size: 12.5px; color: var(--muted); padding: 10px 0 4px; border-bottom: 1px dashed var(--border); margin-bottom: 4px; }
+    .thema-note textarea {
+      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 7px; font-family: inherit; font-size: 12.5px; outline: none; resize: vertical; min-height: 40px;
+    }
+    .thema-note textarea:focus { border-color: var(--accent); }
+
+    .norm-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+    .norm-row:last-child { border-bottom: none; }
+    .norm-nummer { font-weight: 700; font-size: 13px; min-width: 130px; color: var(--accent); flex: none; }
+    .norm-main { flex: 1; min-width: 0; }
+    .norm-titel { font-size: 13px; }
+    .norm-hinweis { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .norm-empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+    .norm-actions { display: flex; gap: 4px; flex: none; }
+
+    input[type=text] {
+      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 7px; font-family: inherit; font-size: 13px; outline: none;
+    }
+    input[type=text]:focus { border-color: var(--accent); }
+    .edit-row { display: flex; gap: 8px; margin: 6px 0; align-items: center; }
+    .edit-row input, .edit-row textarea { flex: 1; }
+    .edit-row textarea {
+      background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 10px; border-radius: 7px; font-family: inherit; font-size: 13px; outline: none; resize: vertical; min-height: 36px;
+    }
+    .edit-row textarea:focus { border-color: var(--accent); }
+    .edit-label { font-size: 11px; color: var(--muted); min-width: 70px; text-transform: uppercase; letter-spacing: .03em; }
+
+    .add-norm { margin-top: 8px; }
+    .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
+    .status { font-size: 11.5px; color: var(--muted); text-align: right; margin-top: 6px; min-height: 16px; }
+  </style>
+  <script src="/toolbox-client.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+    <div class="head">
+      <h1>DIN<span class="accent">-Normen</span></h1>
+      <span class="sub">Übersicht je Themengebiet</span>
+    </div>
+    <p class="lead">
+      Einschlägige DIN-Normen nach Themengebiet gebündelt – als Startpunkt für die Recherche.
+      Themengebiete anlegen, aufklappen und Normen (Nummer, Titel, Anwendungshinweis) hinterlegen.
+    </p>
+    <div class="disclaimer">
+      <span class="ico">⚠️</span>
+      <span>Diese Liste ersetzt keine Rechts- bzw. Normenprüfung im Einzelfall. Normen werden regelmäßig
+      novelliert oder zurückgezogen – Nummer, Ausgabestand und Anwendbarkeit vor Verwendung immer gegen
+      das aktuelle Normenwerk (z. B. DIN Media / Beuth Verlag) sowie ggf. landesrechtliche Vorschriften
+      (z. B. Garagen- und Stellplatzverordnungen der Bundesländer) prüfen.</span>
+    </div>
+
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Suche nach Norm, Titel oder Themengebiet…" />
+      <button class="btn primary" id="add-thema">+ Themengebiet hinzufügen</button>
+    </div>
+
+    <div id="list"></div>
+    <div id="empty" class="empty" hidden>Noch keine Einträge. Mit „+ Themengebiet hinzufügen“ starten.</div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+  'use strict';
+
+  const TOOL_ID = 'din-normen';
+  const STORAGE_KEY = 'din-normen-data';
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  const DEFAULT_DATA = {
+    themen: [
+      {
+        id: uid(), name: 'Brandschutz',
+        notiz: 'Zusätzlich landesrechtliche Bauordnungen, Sonderbauverordnungen und Muster-Richtlinien (z. B. MVStättV, MHochhR) prüfen.',
+        normen: [
+          { id: uid(), nummer: 'DIN 4102-1', titel: 'Brandverhalten von Baustoffen und Bauteilen – Begriffe, Anforderungen und Prüfungen', hinweis: 'Baustoffklassen (A/B) und Bauteilklassifizierung (F-Klassen).' },
+          { id: uid(), nummer: 'DIN EN 13501-1', titel: 'Klassifizierung von Bauprodukten und Bauarten zu ihrem Brandverhalten – Teil 1: Baustoffe', hinweis: 'Europäische Klassifizierung (A1–F), ergänzt DIN 4102.' },
+          { id: uid(), nummer: 'DIN 18009-1', titel: 'Brandschutzingenieurwesen – Teil 1: Anwendung von Ingenieurmethoden', hinweis: 'Grundlage für Brandschutznachweise mit Ingenieurmethoden.' },
+          { id: uid(), nummer: 'DIN 14090', titel: 'Flächen für die Feuerwehr auf Grundstücken', hinweis: 'Zufahrten, Aufstell- und Bewegungsflächen für Rettungsfahrzeuge.' },
+          { id: uid(), nummer: 'DIN 18232-2', titel: 'Rauch- und Wärmefreihaltung – Teil 2: Natürliche Rauchabzugsanlagen (NRA)', hinweis: 'Auslegung von Rauchabzügen in Treppenräumen und Hallen.' }
+        ]
+      },
+      {
+        id: uid(), name: 'Barrierefreies Bauen',
+        notiz: '',
+        normen: [
+          { id: uid(), nummer: 'DIN 18040-1', titel: 'Barrierefreies Bauen – Planungsgrundlagen – Teil 1: Öffentlich zugängliche Gebäude', hinweis: '' },
+          { id: uid(), nummer: 'DIN 18040-2', titel: 'Barrierefreies Bauen – Planungsgrundlagen – Teil 2: Wohnungen', hinweis: 'Enthält Anforderungen für „barrierefrei nutzbar“ und „barrierefrei und uneingeschränkt mit Rollstuhl nutzbar“ (R-Anforderungen).' },
+          { id: uid(), nummer: 'DIN 18040-3', titel: 'Barrierefreies Bauen – Planungsgrundlagen – Teil 3: Öffentlicher Verkehrs- und Freiraum', hinweis: 'Gehwege, Querungsstellen, Rampen im Außenraum.' },
+          { id: uid(), nummer: 'DIN EN 81-70', titel: 'Sicherheitsregeln für Aufzüge – Teil 70: Zugänglichkeit von Aufzügen für Personen einschließlich Personen mit Behinderungen', hinweis: '' }
+        ]
+      },
+      {
+        id: uid(), name: 'Schall- und Wärmeschutz',
+        notiz: '',
+        normen: [
+          { id: uid(), nummer: 'DIN 4109-1', titel: 'Schallschutz im Hochbau – Teil 1: Mindestanforderungen', hinweis: '' },
+          { id: uid(), nummer: 'DIN 4109-2', titel: 'Schallschutz im Hochbau – Teil 2: Rechnerische Nachweise der Erfüllung der Anforderungen', hinweis: '' },
+          { id: uid(), nummer: 'DIN 4108-2', titel: 'Wärmeschutz und Energie-Einsparung in Gebäuden – Teil 2: Mindestanforderungen an den Wärmeschutz', hinweis: '' },
+          { id: uid(), nummer: 'DIN 4108-3', titel: 'Wärmeschutz und Energie-Einsparung in Gebäuden – Teil 3: Klimabedingter Feuchteschutz', hinweis: 'Zusammen mit GEG (Gebäudeenergiegesetz) anzuwenden.' },
+          { id: uid(), nummer: 'DIN EN ISO 717-1', titel: 'Akustik – Bewertung der Schalldämmung in Gebäuden – Teil 1: Luftschalldämmung', hinweis: '' }
+        ]
+      },
+      {
+        id: uid(), name: 'Stellplätze, Rampen, Verkehrsflächen',
+        notiz: 'Stellplatzgrößen, Rampenneigungen und -maße für Garagen sind überwiegend landesrechtlich geregelt (Garagen-/Stellplatzverordnung des jeweiligen Bundeslandes), nicht abschließend durch DIN. Vor Planung die aktuelle Landesverordnung prüfen.',
+        normen: [
+          { id: uid(), nummer: 'DIN 18065', titel: 'Gebäudetreppen – Begriffe, Messregeln, Hauptmaße', hinweis: '' },
+          { id: uid(), nummer: 'DIN 18040-3', titel: 'Barrierefreies Bauen – Öffentlicher Verkehrs- und Freiraum', hinweis: 'Siehe auch Themengebiet „Barrierefreies Bauen“ – regelt u. a. Rampenneigung im Außenraum.' },
+          { id: uid(), nummer: 'DIN EN 81-70', titel: 'Zugänglichkeit von Aufzügen für Personen einschließlich Personen mit Behinderungen', hinweis: 'Relevant für barrierefreie Erschließung von Tiefgaragen/Verkehrsflächen.' }
+        ]
+      }
+    ]
+  };
+
+  let data = { themen: [] };
+  const openIds = new Set();
+  let editingThemaId = null;
+  let editingNoteId = null;
+  let searchTerm = '';
+
+  const listEl = document.getElementById('list');
+  const emptyEl = document.getElementById('empty');
+  const statusEl = document.getElementById('status');
+  const searchEl = document.getElementById('search');
+  let saveTimer = null;
+
+  function save() {
+    statusEl.textContent = 'speichere…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        await Toolbox.saveKey(TOOL_ID, STORAGE_KEY, data, STORAGE_KEY);
+        statusEl.textContent = 'gespeichert';
+        setTimeout(() => { statusEl.textContent = ''; }, 1200);
+      } catch (e) {
+        statusEl.textContent = 'Fehler beim Speichern';
+      }
+    }, 200);
+  }
+
+  function addThema() {
+    const thema = { id: uid(), name: 'Neues Themengebiet', notiz: '', normen: [] };
+    data.themen.push(thema);
+    openIds.add(thema.id);
+    editingThemaId = thema.id;
+    save();
+    render();
+    const input = listEl.querySelector(`[data-thema-name-input="${thema.id}"]`);
+    if (input) { input.focus(); input.select(); }
+  }
+
+  function deleteThema(id) {
+    if (!confirm('Dieses Themengebiet inkl. aller Normen löschen?')) return;
+    data.themen = data.themen.filter(t => t.id !== id);
+    save();
+    render();
+  }
+
+  function addNorm(themaId) {
+    const thema = data.themen.find(t => t.id === themaId);
+    thema.normen.push({ id: uid(), nummer: '', titel: '', hinweis: '', editing: true });
+    save();
+    render();
+  }
+
+  function deleteNorm(themaId, normId) {
+    const thema = data.themen.find(t => t.id === themaId);
+    thema.normen = thema.normen.filter(n => n.id !== normId);
+    save();
+    render();
+  }
+
+  function matchesSearch(thema) {
+    if (!searchTerm) return true;
+    const t = searchTerm.toLowerCase();
+    if (thema.name.toLowerCase().includes(t)) return true;
+    return thema.normen.some(n =>
+      (n.nummer || '').toLowerCase().includes(t) ||
+      (n.titel || '').toLowerCase().includes(t) ||
+      (n.hinweis || '').toLowerCase().includes(t)
+    );
+  }
+
+  function render() {
+    listEl.innerHTML = '';
+    const visibleThemen = data.themen.filter(matchesSearch);
+    emptyEl.hidden = data.themen.length !== 0;
+
+    for (const thema of visibleThemen) {
+      const isOpen = openIds.has(thema.id) || !!searchTerm;
+      const isEditingName = editingThemaId === thema.id;
+      const isEditingNote = editingNoteId === thema.id;
+
+      const card = document.createElement('div');
+      card.className = 'thema-card' + (isOpen ? ' open' : '');
+
+      const head = document.createElement('div');
+      head.className = 'thema-head';
+
+      const left = document.createElement('div');
+      left.className = 'thema-head-left';
+      left.innerHTML = `<span class="chevron">▶</span>`;
+
+      if (isEditingName) {
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.value = thema.name;
+        nameInput.setAttribute('data-thema-name-input', thema.id);
+        nameInput.addEventListener('click', e => e.stopPropagation());
+        nameInput.addEventListener('input', e => { thema.name = e.target.value; save(); });
+        nameInput.addEventListener('blur', () => { editingThemaId = null; render(); });
+        nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.blur(); });
+        left.appendChild(nameInput);
+      } else {
+        const title = document.createElement('span');
+        title.className = 'thema-title';
+        title.textContent = thema.name;
+        left.appendChild(title);
+
+        const count = document.createElement('span');
+        count.className = 'thema-count';
+        count.textContent = `(${thema.normen.length})`;
+        left.appendChild(count);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'thema-actions';
+      actions.addEventListener('click', e => e.stopPropagation());
+
+      const renameBtn = document.createElement('button');
+      renameBtn.className = 'btn btn-sm';
+      renameBtn.textContent = 'Umbenennen';
+      renameBtn.addEventListener('click', () => {
+        editingThemaId = isEditingName ? null : thema.id;
+        render();
+        if (!isEditingName) {
+          const input = listEl.querySelector(`[data-thema-name-input="${thema.id}"]`);
+          if (input) { input.focus(); input.select(); }
+        }
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn btn-sm danger';
+      delBtn.textContent = 'Löschen';
+      delBtn.addEventListener('click', () => deleteThema(thema.id));
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(delBtn);
+
+      head.appendChild(left);
+      head.appendChild(actions);
+      head.addEventListener('click', () => {
+        if (openIds.has(thema.id)) openIds.delete(thema.id); else openIds.add(thema.id);
+        render();
+      });
+
+      card.appendChild(head);
+
+      if (isOpen) {
+        const body = document.createElement('div');
+        body.className = 'thema-body';
+
+        const noteWrap = document.createElement('div');
+        noteWrap.className = 'thema-note';
+        if (isEditingNote) {
+          const ta = document.createElement('textarea');
+          ta.placeholder = 'Hinweis zum Themengebiet (optional)…';
+          ta.value = thema.notiz || '';
+          ta.addEventListener('input', e => { thema.notiz = e.target.value; save(); });
+          ta.addEventListener('blur', () => { editingNoteId = null; render(); });
+          noteWrap.appendChild(ta);
+        } else {
+          const span = document.createElement('span');
+          span.style.cursor = 'pointer';
+          span.textContent = thema.notiz ? thema.notiz : '+ Hinweis zum Themengebiet hinzufügen';
+          span.addEventListener('click', () => { editingNoteId = thema.id; render(); });
+          noteWrap.appendChild(span);
+        }
+        body.appendChild(noteWrap);
+
+        if (thema.normen.length === 0) {
+          const emptyNormen = document.createElement('div');
+          emptyNormen.className = 'norm-empty';
+          emptyNormen.textContent = 'Noch keine Normen hinterlegt.';
+          body.appendChild(emptyNormen);
+        }
+
+        for (const norm of thema.normen) {
+          body.appendChild(renderNorm(thema, norm));
+        }
+
+        const addNormBtn = document.createElement('div');
+        addNormBtn.className = 'add-norm';
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm';
+        btn.textContent = '+ Norm hinzufügen';
+        btn.addEventListener('click', () => addNorm(thema.id));
+        addNormBtn.appendChild(btn);
+        body.appendChild(addNormBtn);
+
+        card.appendChild(body);
+      }
+
+      listEl.appendChild(card);
+    }
+  }
+
+  function renderNorm(thema, norm) {
+    const isEditing = !!norm.editing;
+
+    if (isEditing) {
+      const wrap = document.createElement('div');
+      wrap.style.padding = '8px 0';
+      wrap.style.borderBottom = '1px dashed var(--border)';
+
+      const row1 = document.createElement('div');
+      row1.className = 'edit-row';
+      const numInput = document.createElement('input');
+      numInput.type = 'text';
+      numInput.placeholder = 'DIN-Nummer (z. B. DIN 18040-1)';
+      numInput.value = norm.nummer;
+      numInput.addEventListener('input', e => { norm.nummer = e.target.value; save(); });
+      row1.appendChild(numInput);
+
+      const row2 = document.createElement('div');
+      row2.className = 'edit-row';
+      const titelInput = document.createElement('input');
+      titelInput.type = 'text';
+      titelInput.placeholder = 'Titel der Norm';
+      titelInput.value = norm.titel;
+      titelInput.addEventListener('input', e => { norm.titel = e.target.value; save(); });
+      row2.appendChild(titelInput);
+
+      const row3 = document.createElement('div');
+      row3.className = 'edit-row';
+      const hinweisInput = document.createElement('textarea');
+      hinweisInput.placeholder = 'Anwendungshinweis (optional)';
+      hinweisInput.value = norm.hinweis || '';
+      hinweisInput.addEventListener('input', e => { norm.hinweis = e.target.value; save(); });
+
+      const doneBtn = document.createElement('button');
+      doneBtn.className = 'btn primary btn-sm';
+      doneBtn.textContent = 'Fertig';
+      doneBtn.addEventListener('click', () => { norm.editing = false; save(); render(); });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-x';
+      delBtn.title = 'Entfernen';
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', () => deleteNorm(thema.id, norm.id));
+
+      row3.appendChild(hinweisInput);
+      row3.appendChild(doneBtn);
+      row3.appendChild(delBtn);
+
+      wrap.appendChild(row1);
+      wrap.appendChild(row2);
+      wrap.appendChild(row3);
+      return wrap;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'norm-row';
+
+    const nummer = document.createElement('div');
+    nummer.className = 'norm-nummer';
+    nummer.textContent = norm.nummer || '(ohne Nummer)';
+
+    const main = document.createElement('div');
+    main.className = 'norm-main';
+    const titel = document.createElement('div');
+    titel.className = 'norm-titel';
+    titel.textContent = norm.titel || '(ohne Titel)';
+    main.appendChild(titel);
+    if (norm.hinweis) {
+      const hinweis = document.createElement('div');
+      hinweis.className = 'norm-hinweis';
+      hinweis.textContent = norm.hinweis;
+      main.appendChild(hinweis);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'norm-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-sm';
+    editBtn.textContent = 'Bearbeiten';
+    editBtn.addEventListener('click', () => { norm.editing = true; save(); render(); });
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-x';
+    delBtn.title = 'Entfernen';
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', () => deleteNorm(thema.id, norm.id));
+
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+
+    row.appendChild(nummer);
+    row.appendChild(main);
+    row.appendChild(actions);
+    return row;
+  }
+
+  document.getElementById('add-thema').addEventListener('click', addThema);
+  searchEl.addEventListener('input', e => { searchTerm = e.target.value.trim(); render(); });
+
+  async function bootstrap() {
+    await Toolbox.maybeOfferMigration(TOOL_ID, [STORAGE_KEY]);
+    const loaded = await Toolbox.loadKey(TOOL_ID, STORAGE_KEY, STORAGE_KEY);
+    if (loaded && Array.isArray(loaded.themen)) {
+      data = loaded;
+    } else {
+      data = DEFAULT_DATA;
+      save();
+    }
+    for (const thema of data.themen) openIds.add(thema.id);
+    render();
+  }
+  bootstrap();
+  </script>
+</body>
+</html>

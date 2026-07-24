@@ -1,0 +1,11 @@
+{
+  "name": "DIN-Normen",
+  "description": "Übersicht der einschlägigen DIN-Normen je Themengebiet (Brandschutz, Barrierefreiheit, Schall-/Wärmeschutz, Verkehrsflächen u. a.) – im Team gemeinsam gepflegt.",
+  "category": "Referenz",
+  "icon": "📕",
+  "type": "page",
+  "entry": "index.html",
+  "version": "1.0",
+  "tags": ["DIN", "Normen", "Vorschriften", "Referenz"],
+  "author": "KEKS ARCHITEKTEN"
+}
