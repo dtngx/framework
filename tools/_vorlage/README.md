@@ -30,6 +30,33 @@ Lege deine `index.html` (und ggf. weitere Dateien) in den Tool-Ordner.
 { "name": "…", "type": "page", "entry": "index.html", "icon": "ruler", "category": "Berechnung" }
 ```
 
+Für das gemeinsame Aussehen (Farben, Buttons, Eingabefelder, Hell/Dunkel)
+bindet die Seite das Design ein und kennzeichnet den Body als Tool:
+
+```html
+<head>
+  <link rel="stylesheet" href="/design.css" />
+  <script src="/theme.js"></script>
+  <style>/* nur was dieses Tool zusätzlich braucht */</style>
+</head>
+<body class="tool">
+  <div class="wrap" style="max-width: 960px">
+    <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
+    <div class="head"><h1>Mein Tool</h1><span class="ver">v1.0</span></div>
+    <p class="lead">Ein Satz, was das Tool macht.</p>
+    <div class="panel">
+      <input type="text" placeholder="Eingabe" />
+      <button class="btn primary">Berechnen</button>
+    </div>
+  </div>
+</body>
+```
+
+Bausteine aus `public/design.css`: `.btn` (sekundär), `.btn.primary` (Hauptaktion),
+`.btn.active` (gewählter Modus), `.btn-sm`, `.btn-x`, `.panel`, `.hint`, `.mono`.
+Farben nur über Variablen wie `var(--text)`, `var(--text-muted)`, `var(--surface)`,
+`var(--border)`, `var(--accent)` – dann stimmt auch der Dunkelmodus.
+
 ### Beispiel `script`
 Das `command` wird **im Tool-Ordner** ausgeführt. Ausgabe (stdout/stderr)
 erscheint im Dashboard. Für Python z. B. `"command": "python3 main.py"`.

@@ -39,15 +39,10 @@ const els = {
 const TYPE_LABEL = { link: 'Link', page: 'Web-Tool', script: 'Script' };
 
 // ---------- Theme ----------
-function initTheme() {
-  const saved = localStorage.getItem('toolbox-theme');
-  const theme = saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  document.documentElement.dataset.theme = theme;
-}
 els.themeToggle.addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
-  localStorage.setItem('toolbox-theme', next);
+  try { localStorage.setItem('toolbox-theme', next); } catch (_) { /* privater Modus */ }
 });
 
 // ---------- Daten laden ----------
@@ -316,6 +311,5 @@ els.authForm.addEventListener('submit', async (e) => {
 });
 
 // ---------- Start ----------
-initTheme();
 loadTools();
 refreshAuthUI();

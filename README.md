@@ -79,7 +79,9 @@ framework/
 ├── data/                 # SQLite-Datei (wird automatisch angelegt, nicht versioniert)
 ├── public/              # Dashboard-Oberfläche
 │   ├── index.html
-│   ├── styles.css
+│   ├── design.css         # Gemeinsames Design: Tokens, Bedienelemente, Dashboard, Tools
+│   ├── theme.js           # Hell/Dunkel vor dem ersten Zeichnen setzen
+│   ├── icons.js           # Liniensymbole für Kacheln und Bedienelemente
 │   ├── app.js
 │   ├── admin.html         # Userverwaltung für Admins
 │   └── toolbox-client.js  # Gemeinsamer Client-Helfer für Login-Status & Tool-Daten
