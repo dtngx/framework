@@ -5,35 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Regenwasser-Rechner · KEKS Werkzeugkasten</title>
   <script src="/toolbox-client.js"></script>
+  <script>try{var t=localStorage.getItem('toolbox-theme')||((document.documentElement.dataset.theme === 'dark')?'dark':'light');document.documentElement.dataset.theme=t;}catch(_){}</script>
   <style>
     :root {
       --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
-      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
+      --text:#111111; --muted:#6b6b68; --text-2:#52524f; --border-strong:#d4d3cf; --accent-text:#c43d00; --btn-bg:#111111; --btn-fg:#ffffff;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; --ease: cubic-bezier(.22, 1, .36, 1); --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
     }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
       }
     }
+    :root[data-theme="dark"] {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
+      }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg); color: var(--text); line-height: 1.5; padding: 28px;
+      background: var(--bg); color: var(--text); line-height: 1.5; padding: 32px;
       -webkit-font-smoothing: antialiased;
     }
     .wrap { max-width: 980px; margin: 0 auto; }
     a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
-    a.back:hover { color: var(--accent); }
-    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 8px; flex-wrap: wrap; }
-    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
-    .head h1 .accent { color: var(--accent); }
-    .ver { font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 4px; padding: 1px 6px; }
-    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
-    .lead { color: var(--muted); font-size: 13.5px; margin-bottom: 20px; max-width: 720px; }
+    a.back:hover { color: var(--text); }
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 8px; flex-wrap: wrap; }
+    .head h1 { font-size: 24px; font-weight: 500; line-height: 1.2; }
+    .ver { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .head .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: auto; }
+    .lead { color: var(--text-2); font-size: 14px; margin-bottom: 24px; max-width: 720px; }
     .lead code { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; color: var(--text); font-size: 13px; }
 
-    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
 
     .cols, .row {
       display: grid;
@@ -41,25 +46,25 @@
       gap: 10px; align-items: center;
     }
     .cols {
-      font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+      font-size: 12px; color: var(--muted);
       padding: 0 2px 8px; font-weight: 600;
     }
     .row { margin-bottom: 8px; }
     input, select {
       width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-      padding: 9px 10px; border-radius: 7px; font-family: inherit; font-size: 14px; outline: none;
+      padding: 9px 10px; border-radius: 8px; font-family: inherit; font-size: 14px; outline: none;
     }
     input:focus, select:focus { border-color: var(--accent); }
     .ccell { display: flex; flex-direction: column; gap: 6px; }
     .result { font-size: 14px; font-variant-numeric: tabular-nums; padding-left: 2px; }
     .result.bad { color: var(--err); font-size: 12px; }
-    .btn {
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
       font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
-      color: var(--text); padding: 9px 16px; border-radius: 7px; font-size: 13px; transition: all .15s; font-weight: 600;
+      color: var(--text); padding: 9px 16px; border-radius: 8px; font-size: 13px; transition: border-color .15s var(--ease), color .15s var(--ease), background-color .15s var(--ease), opacity .15s var(--ease); font-weight: 500;
     }
-    .btn:hover { border-color: var(--accent); color: var(--accent); }
-    .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-    .btn.primary:hover { color: #fff; filter: brightness(1.05); }
+    .btn:hover { border-color: var(--border-strong); color: var(--text); }
+    .btn.primary { background: var(--btn-bg); border-color: var(--btn-bg); color: var(--btn-fg); }
+    .btn.primary:hover { border-color: var(--btn-bg); color: var(--btn-fg); opacity: .88; }
     .btn-x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }
     .btn-x:hover { color: var(--err); }
     .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -67,16 +72,16 @@
       display: flex; justify-content: space-between; align-items: baseline;
       border-top: 1px solid var(--border); margin-top: 6px; padding-top: 14px;
     }
-    .total .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-    .total .val { font-size: 26px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
-    .formula { font-size: 11.5px; color: var(--muted); margin-top: 12px; }
+    .total .lbl { font-size: 12px; color: var(--muted); }
+    .total .val { font-size: 28px; font-weight: 500; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .formula { font-size: 12px; color: var(--muted); margin-top: 12px; }
 
     .norms { font-size: 12px; color: var(--muted); }
-    .norms h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text); margin-bottom: 10px; font-weight: 600; }
+    .norms h2 { font-size: 12px; color: var(--text); margin-bottom: 10px; font-weight: 600; }
     .norms ul { list-style: none; }
     .norms li { padding: 4px 0 4px 16px; position: relative; }
-    .norms li::before { content: "–"; position: absolute; left: 0; color: var(--accent); }
-    .norms .disc { margin-top: 12px; font-style: italic; }
+    .norms li::before { content: "–"; position: absolute; left: 0; color: var(--muted); }
+    .norms .disc { margin-top: 12px; font-style: normal; }
 
     @media (max-width: 760px) {
       .cols { display: none; }
@@ -85,16 +90,19 @@
       .row .result { grid-column: 1 / 2; }
       .row .btn-x { grid-column: 2 / 3; justify-self: end; }
     }
+      .btn:active:not(:disabled) { transform: scale(.98); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .ico { display: block; flex: none; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
-      <h1>Regenwasser<span class="accent">-Rechner</span></h1>
+      <h1>Regenwasser-Rechner</h1>
       <span class="ver">v1.1</span>
       <span class="sub">Flachdachentwässerung · DIN 1986-100</span>
-      <button id="switchProject" class="btn" hidden>⇄ Projekt wechseln</button>
+      <button id="switchProject" class="btn" hidden>Projekt wechseln</button>
     </div>
     <p class="lead">
       Regenwasserabfluss je Teilfläche nach <code>Q = r₅,₅ × C × A ⁄ 10.000</code> –
@@ -115,7 +123,7 @@
       </div>
       <div id="rows"></div>
       <div class="actions" style="margin-top:6px;">
-        <button class="btn" id="add">+ Teilfläche hinzufügen</button>
+        <button class="btn" id="add">Teilfläche hinzufügen</button>
       </div>
       <div class="total">
         <span class="lbl">Gesamter Regenwasserabfluss</span>
@@ -125,7 +133,7 @@
     </div>
 
     <div class="panel actions">
-      <button class="btn primary" id="export">⬇ Als CSV (Excel) exportieren</button>
+      <button class="btn primary" id="export">CSV für Excel exportieren</button>
       <span class="formula" id="hint" style="margin:0;"></span>
     </div>
 
@@ -307,7 +315,7 @@
   function exportCsv() {
     const valid = rows.map(computeRow).filter(c => c.valid);
     if (valid.length === 0) {
-      document.getElementById('hint').textContent = 'Bitte zuerst gültige Werte eingeben.';
+      document.getElementById('hint').textContent = 'Bitte zuerst gültige Werte eingeben';
       return;
     }
     const sep = ';';
@@ -327,7 +335,7 @@
     a.href = url; a.download = 'Regenwasserabfluss.csv';
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
-    document.getElementById('hint').textContent = `${valid.length} Teilfläche(n) exportiert.`;
+    document.getElementById('hint').textContent = `${valid.length} Teilfläche(n) exportiert`;
   }
 
   document.getElementById('add').addEventListener('click', () => addRow());

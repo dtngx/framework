@@ -6,24 +6,31 @@
   <title>Admin – KEKS Werkzeugkasten</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23ff4f00'/></svg>" />
+  <script>try{var t=localStorage.getItem('toolbox-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.dataset.theme=t;}catch(_){}</script>
   <style>
-    .admin-wrap { max-width: 900px; margin: 0 auto; padding: 32px 28px 60px; }
-    .admin-wrap h1 { font-size: 20px; margin-bottom: 4px; }
-    .admin-hint { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
-    table.users { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-    table.users th, table.users td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
-    table.users th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-    .status-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
-    .status-pill.active { background: var(--accent-soft); color: var(--ok); }
-    .status-pill.pending { background: var(--surface-2); color: var(--text-muted); }
-    .status-pill.disabled, .status-pill.rejected { background: var(--surface-2); color: var(--err); }
-    .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .admin-wrap { max-width: 960px; margin: 0 auto; padding: 40px 32px 64px; }
+    .admin-wrap h1 { font-size: 28px; font-weight: 500; line-height: 1.15; margin: 0 0 8px; }
+    .admin-hint { color: var(--text-2); font-size: 14px; margin: 0 0 32px; max-width: 640px; }
+    table.users { width: 100%; border-collapse: collapse; font-size: 14px; }
+    table.users th, table.users td { text-align: left; padding: 0 12px; height: 48px; border-bottom: 1px solid var(--border); }
+    table.users th { height: 36px; color: var(--text-muted); font-size: 12px; font-weight: 500; }
+    table.users tbody tr { transition: background-color .15s var(--ease); }
+    table.users tbody tr:hover { background: var(--surface-2); }
+    td.mono { font-family: var(--mono); font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+    .status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+    .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+    .status.active::before { background: var(--ok); }
+    .status.pending::before { background: var(--accent); }
+    .status.disabled::before, .status.rejected::before { background: var(--err); }
+    .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .row-actions button {
-      border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
-      border-radius: 5px; padding: 5px 9px; font-size: 12px; cursor: pointer;
+      height: 28px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+      border-radius: var(--r-sm); padding: 0 12px; font-size: 13px; cursor: pointer;
+      transition: border-color .15s var(--ease);
     }
-    .row-actions button:hover { border-color: var(--accent); color: var(--accent-text); }
-    #denied, #loading { padding: 60px 20px; text-align: center; color: var(--text-muted); }
+    .row-actions button:hover { border-color: var(--border-strong); }
+    #denied, #loading { padding: 64px 20px; text-align: center; color: var(--text-muted); }
+    #denied a { color: var(--accent-text); }
   </style>
 </head>
 <body>
@@ -37,18 +44,18 @@
       <span class="brand-product">Admin</span>
     </div>
     <div class="topbar-actions">
-      <a href="/" class="icon-btn" title="Zurück zur Übersicht" aria-label="Zurück">←</a>
+      <a href="/" class="icon-btn" title="Zurück zur Übersicht" aria-label="Zurück"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></a>
     </div>
   </header>
 
   <div class="admin-wrap">
-    <div id="loading">Lade…</div>
+    <div id="loading">Lädt …</div>
     <div id="denied" hidden>
-      <p>Nur für Administratoren. <a href="/">Zur Übersicht</a></p>
+      <p>Nur für Administratoren · <a href="/">Zur Übersicht</a></p>
     </div>
     <div id="content" hidden>
-      <h1>Useraccounts verwalten</h1>
-      <p class="admin-hint">Neue Registrierungen erscheinen hier als „pending“ und müssen freigeschaltet werden, bevor sich der Account einloggen kann.</p>
+      <h1>Accounts</h1>
+      <p class="admin-hint">Neue Registrierungen erscheinen hier als „wartet“ und müssen freigeschaltet werden, bevor sich der Account einloggen kann.</p>
       <table class="users">
         <thead>
           <tr><th>Benutzername</th><th>Rolle</th><th>Status</th><th>Erstellt</th><th>Aktionen</th></tr>
@@ -67,6 +74,8 @@
     })();
 
     const usersBody = document.getElementById('users-body');
+    const STATUS_LABEL = { active: 'Aktiv', pending: 'Wartet', disabled: 'Deaktiviert', rejected: 'Abgelehnt' };
+    const ROLE_LABEL = { admin: 'Admin', user: 'Nutzer' };
 
     function fmtDate(iso) {
       if (!iso) return '–';
@@ -89,7 +98,7 @@
         body: JSON.stringify({ status }),
       });
       if (res.ok) await loadUsers();
-      else alert('Aktion fehlgeschlagen.');
+      else alert('Aktion fehlgeschlagen');
     }
 
     async function loadUsers() {
@@ -100,12 +109,19 @@
       for (const user of data.users) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td>${user.username}</td>
-          <td>${user.role}</td>
-          <td><span class="status-pill ${user.status}">${user.status}</span></td>
-          <td>${fmtDate(user.created_at)}</td>
-          <td class="row-actions"></td>
+          <td class="name"></td>
+          <td class="role"></td>
+          <td><span class="status"></span></td>
+          <td class="mono"></td>
+          <td><div class="row-actions"></div></td>
         `;
+        // textContent statt innerHTML: Benutzernamen kommen aus der Registrierung
+        tr.querySelector('.name').textContent = user.username;
+        tr.querySelector('.role').textContent = ROLE_LABEL[user.role] || user.role;
+        const statusEl = tr.querySelector('.status');
+        statusEl.classList.add(user.status);
+        statusEl.textContent = STATUS_LABEL[user.status] || user.status;
+        tr.querySelector('.mono').textContent = fmtDate(user.created_at);
         const actionsCell = tr.querySelector('.row-actions');
         for (const [label, status] of actionButtons(user)) {
           const btn = document.createElement('button');

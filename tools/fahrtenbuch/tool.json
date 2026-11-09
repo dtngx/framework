@@ -2,7 +2,7 @@
   "name": "Fahrtenbuch",
   "description": "Kunden, Standardadressen und Fahrten erfassen – Strecken werden automatisch via OpenStreetMap (Nominatim/OSRM) ermittelt. Jahresübersicht mit CSV- und PDF-Export.",
   "category": "Verwaltung",
-  "icon": "🚙",
+  "icon": "route",
   "type": "page",
   "entry": "index.html",
   "version": "1.0",

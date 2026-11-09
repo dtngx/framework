@@ -4,20 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Schleppkurve · KEKS Werkzeugkasten</title>
+  <script>try{var t=localStorage.getItem('toolbox-theme')||((document.documentElement.dataset.theme === 'dark')?'dark':'light');document.documentElement.dataset.theme=t;}catch(_){}</script>
   <style>
     :root {
       --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
-      --text:#111111; --muted:#6b6b68; --accent:#ff4f00; --accent-soft:#fff0ea;
+      --text:#111111; --muted:#6b6b68; --text-2:#52524f; --border-strong:#d4d3cf; --accent-text:#c43d00; --btn-bg:#111111; --btn-fg:#ffffff;
+      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; --ease: cubic-bezier(.22, 1, .36, 1); --accent:#ff4f00; --accent-soft:#fff0ea;
       --ok:#1f9d5a; --err:#e5484d;
       --grid:#ececea; --grid-strong:#d9d9d6; --boundary:#2f6bd6;
     }
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not([data-theme="light"]) {
         --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-        --text:#f2f2f0; --muted:#9a9a97; --accent:#ff4f00; --accent-soft:#2a1509;
+        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
         --grid:#1f1f22; --grid-strong:#2c2c30; --boundary:#6f9bec;
       }
     }
+    :root[data-theme="dark"] {
+        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
+        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
+        --grid:#1f1f22; --grid-strong:#2c2c30; --boundary:#6f9bec;
+      }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -26,19 +33,18 @@
     }
     .wrap { max-width: 1440px; margin: 0 auto; }
     a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
-    a.back:hover { color: var(--accent); }
-    .head { display: flex; align-items: baseline; gap: 12px; margin: 12px 0 6px; flex-wrap: wrap; }
-    .head h1 { font-size: 22px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
-    .head h1 .accent { color: var(--accent); }
-    .ver { font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 4px; padding: 1px 6px; }
-    .head .sub { font-size: 11px; color: var(--muted); margin-left: auto; text-transform: uppercase; letter-spacing: .04em; }
+    a.back:hover { color: var(--text); }
+    .head { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 8px; flex-wrap: wrap; }
+    .head h1 { font-size: 24px; font-weight: 500; line-height: 1.2; }
+    .ver { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .head .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: auto; }
 
     .layout { margin-top: 12px; }
 
     .stage {
       position: relative; width: 100%;
       height: calc(100vh - 232px); min-height: 440px;
-      background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
     }
     .stage canvas, .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 
@@ -48,7 +54,7 @@
       width: 296px; max-width: calc(100% - 20px); max-height: calc(100% - 20px);
       display: flex; flex-direction: column;
       background: color-mix(in srgb, var(--panel) 90%, transparent);
-      border: 1px solid var(--border); border-radius: 10px;
+      border: 1px solid var(--border); border-radius: 12px;
       box-shadow: 0 10px 30px rgba(0,0,0,.16); backdrop-filter: blur(8px);
       overflow: hidden;
     }
@@ -56,8 +62,8 @@
       display: flex; align-items: center; gap: 8px; justify-content: space-between;
       padding: 9px 12px; cursor: pointer; user-select: none; flex: none;
     }
-    .overlay-head:hover { color: var(--accent); }
-    .overlay-head strong { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+    .overlay-head:hover .chev { color: var(--text); }
+    .overlay-head strong { font-size: 12px; font-weight: 500; }
     .overlay-head .chev { font-size: 12px; color: var(--muted); }
     .overlay-body { overflow-y: auto; overflow-x: hidden; padding: 0 12px 12px; }
     .overlay.collapsed { width: auto; }
@@ -65,14 +71,14 @@
     @media (max-width: 620px) { .overlay { width: calc(100% - 20px); } }
     .stage svg { touch-action: none; }
     .readout {
-      position: absolute; left: 10px; top: 10px; font-size: 11.5px; color: var(--muted);
+      position: absolute; left: 10px; top: 10px; font-size: 12px; color: var(--muted);
       background: color-mix(in srgb, var(--panel) 80%, transparent); border: 1px solid var(--border);
       border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; pointer-events: none;
     }
 
     .panel { border-top: 1px solid var(--border); padding: 12px 0 2px; }
     .panel:first-child { border-top: none; padding-top: 8px; }
-    .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 10px; font-weight: 600; }
+    .panel h2 { font-size: 12px; color: var(--muted); margin-bottom: 10px; font-weight: 600; }
 
     label.f { display: block; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
     label.f input, label.f select { margin-top: 3px; }
@@ -87,25 +93,28 @@
     input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--panel); box-shadow: 0 0 0 1px var(--border); }
     input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--panel); }
 
-    .btn {
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
       font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
-      color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
-      transition: all .12s; user-select: none;
+      color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+      transition: border-color .15s var(--ease), color .15s var(--ease), background-color .15s var(--ease), opacity .15s var(--ease); user-select: none;
     }
-    .btn:hover { border-color: var(--accent); color: var(--accent); }
-    .btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn:hover { border-color: var(--border-strong); color: var(--text); }
+    .btn.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent-text); }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
     .btn:disabled:hover { border-color: var(--border); color: var(--text); }
-    kbd { font-family: inherit; font-size: 10.5px; background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; }
+    kbd { font-family: inherit; font-size: 12px; background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; }
     .row { display: flex; gap: 8px; flex-wrap: wrap; }
     .row .btn { flex: 1; text-align: center; }
-    .hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
     label.chk { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); margin-bottom: 6px; cursor: pointer; }
     label.chk input { width: auto; }
 
-    .norms { font-size: 11px; color: var(--muted); margin: 10px 2px 0; }
+    .norms { font-size: 12px; color: var(--muted); margin: 10px 2px 0; }
     .norms strong { color: var(--text); }
     .badge { display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius:4px; padding:1px 6px; margin-left:6px; }
+      .btn:active:not(:disabled) { transform: scale(.98); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .ico { display: block; flex: none; }
   </style>
   <script src="/toolbox-client.js"></script>
 </head>
@@ -113,10 +122,10 @@
   <div class="wrap">
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
-      <h1>Schlepp<span class="accent">kurve</span></h1>
+      <h1>Schleppkurve</h1>
       <span class="ver">v0.11</span>
       <span class="sub">Zweiachsig · interaktiv · RBSV-nah</span>
-      <button id="switchProject" class="btn" hidden>⇄ Projekt wechseln</button>
+      <button id="switchProject" class="btn" hidden>Projekt wechseln</button>
     </div>
     <p class="hint" style="margin:0 0 4px;">
       Fahren, Spuren, überstrichene Fläche, Begrenzungen mit Snapping, Lageplan-Import
@@ -134,8 +143,8 @@
 
         <div class="overlay" id="overlay">
           <div class="overlay-head" id="ovHead">
-            <strong>⚙ Werkzeuge</strong>
-            <span class="chev" id="ovChev">▾ ausblenden</span>
+            <strong>Werkzeuge</strong>
+            <span class="chev" id="ovChev">Ausblenden</span>
           </div>
           <div class="overlay-body">
         <div class="panel">
@@ -156,7 +165,7 @@
             <input type="text" id="vehName" placeholder="z. B. Müllfahrzeug 3-Achs">
           </label>
           <div class="row">
-            <button class="btn" id="vehSave">⭐ Speichern</button>
+            <button class="btn" id="vehSave">Speichern</button>
             <button class="btn" id="vehDelete">Löschen</button>
           </div>
           <p class="hint">Maße editieren, Namen vergeben, speichern – eigene Fahrzeuge liegen lokal im Browser (localStorage).</p>
@@ -171,8 +180,8 @@
             <input type="range" id="speed" min="0.5" max="8" step="0.5" value="3">
           </label>
           <div class="row" style="margin-bottom:8px;">
-            <button class="btn" id="back">◀ Rückwärts</button>
-            <button class="btn" id="fwd">Vorwärts ▶</button>
+            <button class="btn" id="back">Rückwärts</button>
+            <button class="btn" id="fwd">Vorwärts</button>
           </div>
           <div class="row">
             <button class="btn" id="reset">Zurücksetzen</button>
@@ -185,8 +194,8 @@
         <div class="panel">
           <h2>Lageplan (Unterlage)</h2>
           <div class="row">
-            <button class="btn" id="btnImg">🖼 Bild / PDF …</button>
-            <button class="btn" id="btnDxf">📐 DXF …</button>
+            <button class="btn" id="btnImg">Bild / PDF …</button>
+            <button class="btn" id="btnDxf">DXF …</button>
           </div>
           <label class="f" style="margin-top:8px; margin-bottom:0;">DXF-Einheit
             <select id="dxfUnit">
@@ -207,8 +216,8 @@
               <input type="range" id="ulRot" min="-180" max="180" step="0.5" value="0">
             </label>
             <div class="row">
-              <button class="btn" id="ulMove">✋ Verschieben</button>
-              <button class="btn" id="ulCal">📏 Kalibrieren</button>
+              <button class="btn" id="ulMove">Verschieben</button>
+              <button class="btn" id="ulCal">Kalibrieren</button>
             </div>
             <div class="row" style="margin-top:8px;">
               <button class="btn" id="ulRemove">Entfernen</button>
@@ -246,12 +255,12 @@
             </label>
           </div>
           <div class="row">
-            <button class="btn" id="drawBtn">✏ Zeichnen</button>
+            <button class="btn" id="drawBtn">Zeichnen</button>
             <button class="btn" id="undoPt">Punkt zurück</button>
           </div>
           <div class="row" style="margin-top:8px;">
-            <button class="btn" id="frameBtn">▭ Rahmen</button>
-            <button class="btn" id="pillarBtn">● Stütze</button>
+            <button class="btn" id="frameBtn">Rahmen</button>
+            <button class="btn" id="pillarBtn">Stütze</button>
           </div>
           <label class="f" style="margin:8px 0 0;">Stützen-Kantenlänge (m)
             <input type="number" step="0.05" min="0.05" id="pillarSize" value="0.30">
@@ -272,11 +281,11 @@
         <div class="panel">
           <h2>Simulation / Routenplaner</h2>
           <div class="row">
-            <button class="btn" id="plStart">① Start setzen</button>
-            <button class="btn" id="plGoal">② Ziel setzen</button>
+            <button class="btn" id="plStart">Start setzen</button>
+            <button class="btn" id="plGoal">Ziel setzen</button>
           </div>
           <div class="row" style="margin-top:8px;">
-            <button class="btn" id="plStartHere">📍 Fahrzeugposition als Start</button>
+            <button class="btn" id="plStartHere">Fahrzeugposition als Start</button>
           </div>
           <label class="chk" style="margin-top:10px;"><input type="checkbox" id="plIgnoreHead"> Zielrichtung egal</label>
           <label class="chk"><input type="checkbox" id="plVisualize" checked> Suche visualisieren</label>
@@ -284,10 +293,10 @@
             <input type="number" step="0.05" min="0" id="plClearance" value="0.2">
           </label>
           <div class="row" style="margin-top:10px;">
-            <button class="btn" id="plGo">▶ Route berechnen</button>
+            <button class="btn" id="plGo">Route berechnen</button>
           </div>
           <div class="row" style="margin-top:8px;">
-            <button class="btn" id="plPlay" disabled>Abfahren ▶</button>
+            <button class="btn" id="plPlay" disabled>Abfahren</button>
             <button class="btn" id="plApply" disabled>Als Spur übernehmen</button>
           </div>
           <div class="row" style="margin-top:8px;">
@@ -332,8 +341,8 @@
             </label>
           </div>
           <div class="row" style="margin-top:10px;">
-            <button class="btn" id="exDxf">⬇ DXF</button>
-            <button class="btn" id="exPdf">⬇ PDF / Druck</button>
+            <button class="btn" id="exDxf">DXF exportieren</button>
+            <button class="btn" id="exPdf">PDF / Drucken</button>
           </div>
           <p class="hint" id="exStatus" style="min-height:0;"></p>
           <p class="hint"><strong>Reifenspuren</strong> (grau), <strong>Hüllkurve</strong>/Kantenspuren (rot) und
@@ -520,7 +529,7 @@
 
   // ---------- Ghost-Canvas (überstrichene Fläche) ----------
   function accentRGBA(a) {
-    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const dark = (document.documentElement.dataset.theme === 'dark');
     return `rgba(255,79,0,${a})`; // Orange, dark/light identisch
   }
   function clearGhost() { gctx.clearRect(0, 0, VBW, VBH); }
@@ -1133,7 +1142,7 @@
       cs.textContent = `L = ${len.toFixed(2)} m · α = ${ang.toFixed(1)}°`;
       cs.style.color = cssVar('--boundary');
     } else if (boundaries.length === 0) { cs.textContent = ''; }
-    else if (collisionState.collision) { cs.textContent = '● KOLLISION'; cs.style.color = cssVar('--err'); }
+    else if (collisionState.collision) { cs.textContent = '● Kollision'; cs.style.color = cssVar('--err'); }
     else { cs.textContent = 'min. Abstand ' + (collisionState.minClear != null ? collisionState.minClear.toFixed(2) : '–') + ' m'; cs.style.color = cssVar('--ok'); }
   }
 
@@ -1663,7 +1672,7 @@
   // ---------- Raster (Bild) platzieren ----------
   function placeImageUnderlay(src, w, h) {
     const iw = w || src.naturalWidth, ih = h || src.naturalHeight;
-    if (!iw || !ih) { alert('Bild hat keine gültige Größe.'); return; }
+    if (!iw || !ih) { alert('Bild hat keine gültige Größe'); return; }
     const worldH = 0.7 * (VBH / view.scale);         // Startgröße: ~70 % der Ansicht
     const scale = worldH / ih;
     const center = s2w({ x: VBW / 2, y: VBH / 2 });
@@ -1674,7 +1683,7 @@
     const url = URL.createObjectURL(f);
     const img = new Image();
     img.onload = () => { URL.revokeObjectURL(url); placeImageUnderlay(img); };
-    img.onerror = () => { URL.revokeObjectURL(url); alert('Bild konnte nicht geladen werden.'); };
+    img.onerror = () => { URL.revokeObjectURL(url); alert('Bild konnte nicht geladen werden'); };
     img.src = url;
   }
 
@@ -1695,7 +1704,7 @@
   async function loadPdfAsImage(f) {
     setUlStatus('PDF wird geladen …');
     let lib;
-    try { lib = await ensurePdfLib(); } catch (err) { setUlStatus(''); alert('PDF-Unterstützung konnte nicht geladen werden.'); return; }
+    try { lib = await ensurePdfLib(); } catch (err) { setUlStatus(''); alert('PDF-Unterstützung konnte nicht geladen werden'); return; }
     try {
       const buf = await f.arrayBuffer();
       const pdf = await lib.getDocument({ data: buf }).promise;
@@ -1837,7 +1846,7 @@
       if (!segs.length) { alert('Keine unterstützten Geometrien im DXF gefunden\n(LINE, LWPOLYLINE, POLYLINE, CIRCLE, ARC).'); return; }
       placeDxfUnderlay(segs);
     };
-    reader.onerror = () => alert('DXF konnte nicht gelesen werden.');
+    reader.onerror = () => alert('DXF konnte nicht gelesen werden');
     reader.readAsText(f);
   });
   $('ulOpacity').addEventListener('input', (e) => {
@@ -1865,7 +1874,7 @@
   // Werkzeug-Overlay ein-/ausklappen
   $('ovHead').addEventListener('click', () => {
     const collapsed = $('overlay').classList.toggle('collapsed');
-    $('ovChev').textContent = collapsed ? '▸ zeigen' : '▾ ausblenden';
+    $('ovChev').textContent = collapsed ? 'Einblenden' : 'Ausblenden';
   });
 
   // ===========================================================================
@@ -1964,7 +1973,7 @@
   $('exDxf').addEventListener('click', () => {
     const bg = $('exBg').checked, grid = $('exGrid').checked;
     const bounds = contentBounds(bg);
-    if (!bounds) { $('exStatus').textContent = 'Nichts zu exportieren – erst fahren oder Begrenzungen/Unterlage laden.'; return; }
+    if (!bounds) { $('exStatus').textContent = 'Nichts zu exportieren – erst fahren oder Begrenzungen/Unterlage laden'; return; }
     const dxf = buildDXF({ grid, bg, vehicle: true, bounds });
     downloadBlob('schleppkurve.dxf', dxf, 'application/dxf');
     $('exStatus').textContent = (bg && underlay && underlay.type === 'image')
@@ -2062,14 +2071,14 @@
   $('exPdf').addEventListener('click', () => {
     const bg = $('exBg').checked, grid = $('exGrid').checked;
     const bounds = contentBounds(bg);
-    if (!bounds) { $('exStatus').textContent = 'Nichts zu exportieren – erst fahren oder Begrenzungen/Unterlage laden.'; return; }
+    if (!bounds) { $('exStatus').textContent = 'Nichts zu exportieren – erst fahren oder Begrenzungen/Unterlage laden'; return; }
     const denom = parseInt($('pdfScale').value, 10);
     const fitFmt = ($('pdfFmt') && $('pdfFmt').value) || 'A4';
     const { svg, fmt, orient, exact } = buildExportSVG({ grid, bg, vehicle: true, bounds, scaleDenom: denom, fitFmt });
     const scaleTxt = denom > 0 ? (exact ? '1:' + denom : '1:' + denom + ' (auf A0 verkleinert)') : 'an Blatt angepasst';
     const orientTxt = orient === 'landscape' ? 'quer' : 'hoch';
     const win = window.open('', '_blank');
-    if (!win) { $('exStatus').textContent = 'Pop-up blockiert – bitte Pop-ups erlauben und erneut versuchen.'; return; }
+    if (!win) { $('exStatus').textContent = 'Pop-up blockiert – bitte Pop-ups erlauben und erneut versuchen'; return; }
     // Standard-DIN-Blattgröße als @page (Schlüsselwort A4/A3… + Ausrichtung) → macOS/Safari
     // druckt zuverlässig; margin:0, weil das SVG bereits blattfüllend mit weißem Rand ist.
     win.document.write('<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Schleppkurve – Export ' + fmt + ' ' + orientTxt + '</title>'
@@ -2095,7 +2104,7 @@
   // ===========================================================================
   function countReverse(path) { let c = 0; for (let i = 1; i < path.length; i++) if (path[i].gear < 0 && path[i - 1].gear >= 0) c++; return c; }
   function pathLenM(path) { let L = 0; for (let i = 1; i < path.length; i++) L += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y); return L; }
-  function setPlanBusy(b) { $('plGo').textContent = b ? '■ Abbrechen' : '▶ Route berechnen'; }
+  function setPlanBusy(b) { $('plGo').textContent = b ? 'Abbrechen' : 'Route berechnen'; }
 
   $('plStart').addEventListener('click', () => { setMode(mode === 'setStart' ? 'pan' : 'setStart'); render(); });
   $('plGoal').addEventListener('click', () => { setMode(mode === 'setGoal' ? 'pan' : 'setGoal'); render(); });
@@ -2107,7 +2116,7 @@
     startPose = { x: state.x, y: state.y, theta: state.theta };
     plannedPath = null; searchTrace = null;
     $('plApply').disabled = true; $('plPlay').disabled = true;
-    $('plStatus').textContent = 'Start auf aktuelle Fahrzeugposition gesetzt.';
+    $('plStatus').textContent = 'Start auf aktuelle Fahrzeugposition gesetzt';
     setMode('pan'); render();
   });
 
@@ -2120,11 +2129,11 @@
   });
 
   $('plGo').addEventListener('click', () => {
-    if (planRun) { cancelAnimationFrame(planRun.raf); planRun = null; setPlanBusy(false); $('plStatus').textContent = 'Abgebrochen.'; return; }
-    if (!startPose || !goalPose) { $('plStatus').textContent = 'Bitte zuerst Start und Ziel setzen.'; return; }
+    if (planRun) { cancelAnimationFrame(planRun.raf); planRun = null; setPlanBusy(false); $('plStatus').textContent = 'Abgebrochen'; return; }
+    if (!startPose || !goalPose) { $('plStatus').textContent = 'Bitte zuerst Start und Ziel setzen'; return; }
     const clearance = Math.max(0, parseFloat($('plClearance').value) || 0);
-    if (collidesAt(startPose, clearance)) { $('plStatus').textContent = 'Startpose kollidiert mit einer Begrenzung – bitte versetzen.'; return; }
-    if (collidesAt(goalPose, clearance)) { $('plStatus').textContent = 'Zielpose kollidiert mit einer Begrenzung – bitte versetzen.'; return; }
+    if (collidesAt(startPose, clearance)) { $('plStatus').textContent = 'Startpose kollidiert mit einer Begrenzung – bitte versetzen'; return; }
+    if (collidesAt(goalPose, clearance)) { $('plStatus').textContent = 'Zielpose kollidiert mit einer Begrenzung – bitte versetzen'; return; }
     const ignoreHeading = $('plIgnoreHead').checked;
     const visualize = $('plVisualize').checked;
     const planner = makePlanner(startPose, goalPose, { vehicle: veh, clearance, ignoreHeading, visualize });
