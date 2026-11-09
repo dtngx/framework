@@ -4,121 +4,79 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Schleppkurve · KEKS Werkzeugkasten</title>
-  <script>try{var t=localStorage.getItem('toolbox-theme')||((document.documentElement.dataset.theme === 'dark')?'dark':'light');document.documentElement.dataset.theme=t;}catch(_){}</script>
+  <link rel="stylesheet" href="/design.css" />
+  <script src="/theme.js"></script>
   <style>
-    :root {
-      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
-      --text:#111111; --muted:#6b6b68; --text-2:#52524f; --border-strong:#d4d3cf; --accent-text:#c43d00; --btn-bg:#111111; --btn-fg:#ffffff;
-      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; --ease: cubic-bezier(.22, 1, .36, 1); --accent:#ff4f00; --accent-soft:#fff0ea;
-      --ok:#1f9d5a; --err:#e5484d;
-      --grid:#ececea; --grid-strong:#d9d9d6; --boundary:#2f6bd6;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
-        --grid:#1f1f22; --grid-strong:#2c2c30; --boundary:#6f9bec;
-      }
-    }
-    :root[data-theme="dark"] {
-        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
-        --grid:#1f1f22; --grid-strong:#2c2c30; --boundary:#6f9bec;
-      }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg); color: var(--text); line-height: 1.5; padding: 24px;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrap { max-width: 1440px; margin: 0 auto; }
-    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
-    a.back:hover { color: var(--text); }
-    .head { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 8px; flex-wrap: wrap; }
-    .head h1 { font-size: 24px; font-weight: 500; line-height: 1.2; }
-    .ver { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .head .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: auto; }
+    :root { --grid: #ececea; --grid-strong: #d9d9d6; --boundary: #2f6bd6; }
+    :root[data-theme="dark"] { --grid: #1f1f22; --grid-strong: #2c2c30; --boundary: #6f9bec; }
+    body.tool { padding: 24px; }
+    .wrap { max-width: 1440px; }
 
     .layout { margin-top: 12px; }
 
     .stage {
       position: relative; width: 100%;
       height: calc(100vh - 232px); min-height: 440px;
-      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden;
     }
     .stage canvas, .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .stage svg { touch-action: none; }
 
     /* Werkzeug-Overlay – schwebt über der Zeichenfläche, einklappbar */
     .overlay {
-      position: absolute; top: 10px; right: 10px; z-index: 6;
-      width: 296px; max-width: calc(100% - 20px); max-height: calc(100% - 20px);
+      position: absolute; top: 12px; right: 12px; z-index: 6;
       display: flex; flex-direction: column;
-      background: color-mix(in srgb, var(--panel) 90%, transparent);
-      border: 1px solid var(--border); border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,.16); backdrop-filter: blur(8px);
+      width: 296px; max-width: calc(100% - 24px); max-height: calc(100% - 24px);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      border: 1px solid var(--border); border-radius: var(--r-card);
+      box-shadow: var(--shadow); backdrop-filter: blur(8px);
       overflow: hidden;
     }
     .overlay-head {
-      display: flex; align-items: center; gap: 8px; justify-content: space-between;
-      padding: 9px 12px; cursor: pointer; user-select: none; flex: none;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none;
+      padding: 8px 12px; cursor: pointer; user-select: none;
     }
-    .overlay-head:hover .chev { color: var(--text); }
     .overlay-head strong { font-size: 12px; font-weight: 500; }
-    .overlay-head .chev { font-size: 12px; color: var(--muted); }
+    .overlay-head .chev { font-size: 12px; color: var(--text-muted); transition: color var(--t-fast) var(--ease); }
+    .overlay-head:hover .chev { color: var(--text); }
     .overlay-body { overflow-y: auto; overflow-x: hidden; padding: 0 12px 12px; }
     .overlay.collapsed { width: auto; }
     .overlay.collapsed .overlay-body { display: none; }
-    @media (max-width: 620px) { .overlay { width: calc(100% - 20px); } }
-    .stage svg { touch-action: none; }
+    @media (max-width: 620px) { .overlay { width: calc(100% - 24px); } }
+
+    /* Dichte Bedienung im Overlay */
+    .overlay .btn { height: 32px; padding: 0 12px; font-size: 12px; }
+    .overlay input:not([type=checkbox], [type=range]), .overlay select { height: 32px; padding: 0 8px; font-size: 13px; }
+
     .readout {
-      position: absolute; left: 10px; top: 10px; font-size: 12px; color: var(--muted);
-      background: color-mix(in srgb, var(--panel) 80%, transparent); border: 1px solid var(--border);
-      border-radius: 6px; padding: 6px 9px; font-variant-numeric: tabular-nums; pointer-events: none;
+      position: absolute; left: 12px; top: 12px;
+      padding: 4px 8px;
+      background: color-mix(in srgb, var(--surface) 80%, transparent);
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      font-family: var(--mono); font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+      pointer-events: none;
     }
 
-    .panel { border-top: 1px solid var(--border); padding: 12px 0 2px; }
+    .panel { padding: 12px 0 4px; background: none; border: 0; border-top: 1px solid var(--border); border-radius: 0; }
     .panel:first-child { border-top: none; padding-top: 8px; }
-    .panel h2 { font-size: 12px; color: var(--muted); margin-bottom: 10px; font-weight: 600; }
 
-    label.f { display: block; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
-    label.f input, label.f select { margin-top: 3px; }
-    input, select {
-      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-      padding: 7px 8px; border-radius: 6px; font-family: inherit; font-size: 13px; outline: none;
-    }
-    input:focus, select:focus { border-color: var(--accent); }
+    label.f { display: block; margin-bottom: 8px; font-size: 12px; color: var(--text-muted); }
+    label.f input, label.f select { margin-top: 4px; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-    input[type=range] { -webkit-appearance: none; appearance: none; background: var(--panel2); height: 6px; border-radius: 3px; padding: 0; }
-    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--panel); box-shadow: 0 0 0 1px var(--border); }
-    input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 3px solid var(--panel); }
+    kbd { font-family: inherit; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .row .btn { flex: 1; }
+    .hint { margin-top: 8px; }
+    label.chk { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
 
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
-      color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
-      transition: border-color .15s var(--ease), color .15s var(--ease), background-color .15s var(--ease), opacity .15s var(--ease); user-select: none;
-    }
-    .btn:hover { border-color: var(--border-strong); color: var(--text); }
-    .btn.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent-text); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; }
-    .btn:disabled:hover { border-color: var(--border); color: var(--text); }
-    kbd { font-family: inherit; font-size: 12px; background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; }
-    .row .btn { flex: 1; text-align: center; }
-    .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
-    label.chk { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); margin-bottom: 6px; cursor: pointer; }
-    label.chk input { width: auto; }
-
-    .norms { font-size: 12px; color: var(--muted); margin: 10px 2px 0; }
+    .norms { margin: 12px 2px 0; font-size: 12px; color: var(--text-muted); }
     .norms strong { color: var(--text); }
-    .badge { display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius:4px; padding:1px 6px; margin-left:6px; }
-      .btn:active:not(:disabled) { transform: scale(.98); }
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .ico { display: block; flex: none; }
+    .badge { display: inline-block; margin-left: 8px; font-family: var(--mono); font-size: 12px; color: var(--text-muted); }
   </style>
   <script src="/toolbox-client.js"></script>
 </head>
-<body>
+<body class="tool">
   <div class="wrap">
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
@@ -573,13 +531,13 @@
     // Maßstabsbalken
     const barM = step;
     const p0 = { x: 16, y: VBH - 16 }, p1 = { x: 16 + barM * view.scale, y: VBH - 16 };
-    out += `<line x1="${p0.x}" y1="${p0.y}" x2="${p1.x}" y2="${p1.y}" stroke="${cssVar('--muted')}" stroke-width="2"/>`;
-    out += `<text x="${p0.x}" y="${p0.y - 6}" fill="${cssVar('--muted')}" font-size="11">${barM} m</text>`;
+    out += `<line x1="${p0.x}" y1="${p0.y}" x2="${p1.x}" y2="${p1.y}" stroke="${cssVar('--text-muted')}" stroke-width="2"/>`;
+    out += `<text x="${p0.x}" y="${p0.y - 6}" fill="${cssVar('--text-muted')}" font-size="11">${barM} m</text>`;
     return out;
   }
 
   function tracesSvg() {
-    const accent = cssVar('--accent'), muted = cssVar('--muted');
+    const accent = cssVar('--accent'), muted = cssVar('--text-muted');
     let out = '';
     // Radspuren (dünn, gepunktet)
     for (const k of traceKeys) {
@@ -1581,7 +1539,7 @@
       uctx.scale(k, k);
       try { uctx.drawImage(underlay.img, -underlay.iw / 2, -underlay.ih / 2); } catch (e) {}
     } else if (underlay.type === 'dxf') {
-      uctx.strokeStyle = cssVar('--muted');
+      uctx.strokeStyle = cssVar('--text-muted');
       uctx.lineWidth = 1.2;
       uctx.lineJoin = 'round';
       for (const seg of underlay.segs) {

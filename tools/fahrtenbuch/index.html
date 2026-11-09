@@ -7,97 +7,53 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="/toolbox-client.js"></script>
-<script>try{var t=localStorage.getItem('toolbox-theme')||((document.documentElement.dataset.theme === 'dark')?'dark':'light');document.documentElement.dataset.theme=t;}catch(_){}</script>
+<link rel="stylesheet" href="/design.css" />
+  <script src="/theme.js"></script>
   <style>
-  :root {
-    --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
-    --text:#111111; --muted:#6b6b68; --text-2:#52524f; --border-strong:#d4d3cf; --accent-text:#c43d00; --btn-bg:#111111; --btn-fg:#ffffff;
-      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; --ease: cubic-bezier(.22, 1, .36, 1); --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
-  }
-  @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-      --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-      --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
+    .wrap { max-width: 980px; }
+
+    .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .tab {
+      padding: 8px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+      font-size: 13px; font-weight: 500; color: var(--text-muted);
+      cursor: pointer; user-select: none;
+      transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
     }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    .panel { display: none; margin-bottom: 16px; }
+    .panel.active { display: block; }
+
+    label { display: block; margin: 12px 0 8px; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+    label:first-child { margin-top: 0; }
+    input[readonly] { color: var(--text-muted); }
+    .row { display: flex; gap: 12px; }
+    .row > div { flex: 1; }
+
+    .panel > .btn { margin-top: 16px; }
+    .btn.danger-link { height: auto; padding: 2px 4px; background: none; border: 0; font-size: 12px; color: var(--text-muted); }
+    .btn.danger-link:hover { color: var(--err); }
+
+    table { margin-top: 16px; }
+    tfoot td { border-top: 1px solid var(--text); border-bottom: none; font-weight: 500; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+
+    .status { min-height: 16px; margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+    .hint { margin-top: 8px; }
+
+    @media (max-width: 700px) {
+      .row { flex-direction: column; }
+      table, thead, tbody, tfoot, th, td, tr { display: block; }
+      thead tr { display: none; }
+      tbody tr, tfoot tr { padding: 8px 0; border-bottom: 1px solid var(--border); }
+      td { padding: 2px 0; border-bottom: none; }
+      td::before { content: attr(data-label); display: block; font-size: 12px; color: var(--text-muted); }
     }
-    :root[data-theme="dark"] {
-      --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-      --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
-    }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg); color: var(--text); line-height: 1.5; padding: 32px;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 980px; margin: 0 auto; }
-  a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
-  a.back:hover { color: var(--text); }
-  .head { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 8px; flex-wrap: wrap; }
-  .head h1 { font-size: 24px; font-weight: 500; line-height: 1.2; }
-  .ver { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .head .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: auto; }
-  .lead { color: var(--text-2); font-size: 14px; margin-bottom: 24px; max-width: 720px; }
-
-  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-  .tab {
-    padding: 9px 14px; cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600;
-    border-bottom: 2px solid transparent; user-select: none;
-  }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
-
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; display: none; }
-  .panel.active { display: block; }
-
-  label { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin: 12px 0 6px; }
-  label:first-child { margin-top: 0; }
-  input, select {
-    width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-    padding: 9px 10px; border-radius: 8px; font-family: inherit; font-size: 14px; outline: none;
-  }
-  input:focus, select:focus { border-color: var(--accent); }
-  input[readonly] { color: var(--muted); }
-  .row { display: flex; gap: 12px; }
-  .row > div { flex: 1; }
-
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
-    color: var(--text); padding: 9px 16px; border-radius: 8px; font-size: 13px; transition: border-color .15s var(--ease), color .15s var(--ease), background-color .15s var(--ease), opacity .15s var(--ease); font-weight: 500;
-    margin-top: 14px;
-  }
-  .btn:hover { border-color: var(--border-strong); color: var(--text); }
-  .btn.primary { background: var(--btn-bg); border-color: var(--btn-bg); color: var(--btn-fg); }
-  .btn.primary:hover { border-color: var(--btn-bg); color: var(--btn-fg); opacity: .88; }
-  .btn.danger-link { background: none; border: 0; color: var(--muted); padding: 2px 6px; margin: 0; font-size: 12px; font-weight: 600; }
-  .btn.danger-link:hover { color: var(--err); border: 0; }
-
-  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
-  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
-  th { color: var(--muted); font-weight: 600; font-size: 12px; }
-  td.num, th.num { font-variant-numeric: tabular-nums; }
-  tfoot td { font-weight: 500; border-top: 1px solid var(--text); border-bottom: none; color: var(--accent-text); font-variant-numeric: tabular-nums; }
-
-  .status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 16px; }
-  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-  .checkbox-row input { width: auto; }
-  .actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
-  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
-
-  @media (max-width: 700px) {
-    .row { flex-direction: column; }
-    table, thead, tbody, tfoot, th, td, tr { display: block; }
-    thead tr { display: none; }
-    tbody tr, tfoot tr { border-bottom: 1px solid var(--border); padding: 8px 0; }
-    td { border-bottom: none; padding: 2px 0; }
-    td::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
-  }
-    .btn:active:not(:disabled) { transform: scale(.98); }
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .ico { display: block; flex: none; }
   </style>
 </head>
-<body>
+<body class="tool">
 <div class="wrap">
   <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
   <div class="head">

@@ -198,87 +198,6 @@
     },
   };
 
-  let pickerStyleInjected = false;
-  function injectPickerStyle() {
-    if (pickerStyleInjected) return;
-    pickerStyleInjected = true;
-    const style = document.createElement('style');
-    style.textContent = `
-      .tbx-picker-backdrop {
-        /* Tools heißen ihre Variablen --panel/--panel2/--muted, das Dashboard --bg-elev/--surface-2/--text-muted */
-        --p-bg: var(--bg-elev, var(--panel, #fff));
-        --p-raised: var(--surface-2, var(--panel2, #f4f4f3));
-        --p-border: var(--border, #e7e6e3);
-        --p-text: var(--text, #111);
-        --p-muted: var(--text-muted, var(--muted, #6b6b68));
-        --p-btn-bg: var(--btn-bg, var(--text, #111));
-        --p-btn-fg: var(--btn-fg, var(--bg, #fff));
-        --p-ease: cubic-bezier(.22, 1, .36, 1);
-        position: fixed; inset: 0; z-index: 9999;
-        background: rgba(10,10,10,.5);
-        display: flex; align-items: center; justify-content: center;
-        padding: 24px;
-      }
-      .tbx-picker-box {
-        width: min(520px, 100%); max-height: 82vh; overflow: auto;
-        background: var(--p-bg); color: var(--p-text);
-        border: 1px solid var(--p-border); border-radius: 16px;
-        box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.08);
-        padding: 24px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        font-size: 14px; line-height: 1.5;
-        animation: tbx-rise .3s var(--p-ease);
-      }
-      @keyframes tbx-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-      .tbx-picker-box button, .tbx-picker-box input { font-family: inherit; }
-      .tbx-picker-box :focus-visible { outline: 2px solid var(--accent, #ff4f00); outline-offset: 2px; }
-      .tbx-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-      .tbx-picker-head h2 { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.3; }
-      .tbx-picker-section-label { font-size: 12px; font-weight: 500; color: var(--p-muted); margin: 24px 0 8px; }
-      .tbx-picker-section-label:first-of-type { margin-top: 0; }
-      .tbx-picker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-      .tbx-picker-item {
-        display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-        border: 1px solid var(--p-border); border-radius: 10px; padding: 12px;
-      }
-      .tbx-picker-item-name { font-weight: 500; font-size: 14px; }
-      .tbx-picker-item-date {
-        font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
-        font-size: 12px; color: var(--p-muted); font-variant-numeric: tabular-nums;
-      }
-      .tbx-picker-item-owner { color: var(--p-text); }
-      .tbx-picker-item-actions { display: flex; gap: 4px; flex-wrap: wrap; }
-      .tbx-picker-box button {
-        height: 32px; border: 1px solid var(--p-border); background: var(--p-raised); color: var(--p-text);
-        border-radius: 8px; padding: 0 12px; font-size: 13px; cursor: pointer;
-        transition: border-color .15s var(--p-ease), opacity .15s var(--p-ease);
-      }
-      .tbx-picker-box button:hover { border-color: color-mix(in srgb, var(--p-text) 25%, var(--p-border)); }
-      .tbx-picker-box button.tbx-picker-open, .tbx-picker-new button {
-        background: var(--p-btn-bg); border-color: var(--p-btn-bg); color: var(--p-btn-fg); font-weight: 500;
-      }
-      .tbx-picker-box button.tbx-picker-open:hover, .tbx-picker-new button:hover { opacity: .88; }
-      .tbx-picker-item-actions .tbx-picker-delete:hover { border-color: var(--err, #dc2626); color: var(--err, #dc2626); }
-      .tbx-picker-empty { color: var(--p-muted); font-size: 13px; padding: 4px 0; }
-      .tbx-picker-new { display: flex; gap: 8px; margin-top: 24px; }
-      .tbx-picker-new input {
-        flex: 1; height: 36px; border: 1px solid var(--p-border); background: var(--p-raised); color: var(--p-text);
-        border-radius: 8px; padding: 0 12px; font-size: 14px; outline: none;
-      }
-      .tbx-picker-new input:focus { border-color: color-mix(in srgb, var(--p-text) 25%, var(--p-border)); }
-      .tbx-picker-new button { height: 36px; }
-      .tbx-picker-error { color: var(--err, #dc2626); font-size: 13px; margin-top: 8px; min-height: 20px; }
-      .tbx-picker-box button.tbx-picker-close {
-        width: 32px; height: 32px; padding: 0; display: grid; place-items: center; flex: none;
-        background: transparent; border-color: transparent; color: var(--p-muted);
-      }
-      .tbx-picker-box button.tbx-picker-close:hover { background: var(--p-raised); color: var(--p-text); }
-      .tbx-picker-foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; border-top: 1px solid var(--p-border); padding-top: 16px; }
-      .tbx-picker-foot button { flex: 1; }
-    `;
-    document.head.appendChild(style);
-  }
-
   function fmtDate(iso) {
     if (!iso) return '';
     return iso.replace('T', ' ').slice(0, 16);
@@ -295,7 +214,6 @@
     return getSession().then((session) => {
       if (!session.loggedIn) return { anonymous: true };
 
-      injectPickerStyle();
       return new Promise((resolve) => {
         const backdrop = document.createElement('div');
         backdrop.className = 'tbx-picker-backdrop';
@@ -312,12 +230,12 @@
           <ul class="tbx-picker-list tbx-picker-list-shared"></ul>
           <div class="tbx-picker-new">
             <input type="text" placeholder="Name für neues Projekt" maxlength="80" />
-            <button type="button">Anlegen</button>
+            <button type="button" class="btn primary">Anlegen</button>
           </div>
           <div class="tbx-picker-error"></div>
           <div class="tbx-picker-foot">
-            <button type="button" class="tbx-picker-cancel">Ohne Projekt fortfahren</button>
-            <button type="button" class="tbx-picker-back">Zurück zu den Werkzeugen</button>
+            <button type="button" class="btn tbx-picker-cancel">Ohne Projekt fortfahren</button>
+            <button type="button" class="btn tbx-picker-back">Zurück zu den Werkzeugen</button>
           </div>
         `;
         backdrop.appendChild(box);
@@ -372,10 +290,10 @@
               <div class="tbx-picker-item-date"></div>
             </div>
             <div class="tbx-picker-item-actions">
-              <button type="button" class="tbx-picker-open">Öffnen</button>
-              <button type="button" class="tbx-picker-rename">Umbenennen</button>
-              <button type="button" class="tbx-picker-share"></button>
-              <button type="button" class="tbx-picker-delete">Löschen</button>
+              <button type="button" class="btn primary tbx-picker-open">Öffnen</button>
+              <button type="button" class="btn tbx-picker-rename">Umbenennen</button>
+              <button type="button" class="btn tbx-picker-share"></button>
+              <button type="button" class="btn danger tbx-picker-delete">Löschen</button>
             </div>
           `;
           li.querySelector('.tbx-picker-item-name').textContent = p.name;

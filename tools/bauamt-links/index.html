@@ -4,86 +4,40 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bauamt-Links · KEKS Werkzeugkasten</title>
-  <script>try{var t=localStorage.getItem('toolbox-theme')||((document.documentElement.dataset.theme === 'dark')?'dark':'light');document.documentElement.dataset.theme=t;}catch(_){}</script>
+  <link rel="stylesheet" href="/design.css" />
+  <script src="/theme.js"></script>
   <style>
-    :root {
-      --bg:#ffffff; --panel:#ffffff; --panel2:#f5f5f4; --border:#e6e5e3;
-      --text:#111111; --muted:#6b6b68; --text-2:#52524f; --border-strong:#d4d3cf; --accent-text:#c43d00; --btn-bg:#111111; --btn-fg:#ffffff;
-      --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; --ease: cubic-bezier(.22, 1, .36, 1); --accent:#ff4f00; --accent-soft:#fff0ea; --err:#e5484d;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
-      }
-    }
-    :root[data-theme="dark"] {
-        --bg:#0e0e0f; --panel:#151516; --panel2:#1f1f21; --border:#2a2a2c;
-        --text:#f2f2f0; --muted:#9a9a97; --text-2:#b0b0ac; --border-strong:#3a3a3d; --accent-text:#ff7a45; --btn-bg:#ededec; --btn-fg:#111111; --accent:#ff4f00; --accent-soft:#2a1509;
-      }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg); color: var(--text); line-height: 1.5; padding: 32px;
-      -webkit-font-smoothing: antialiased;
-    }
-    .wrap { max-width: 900px; margin: 0 auto; }
-    a.back { color: var(--muted); text-decoration: none; font-size: 13px; }
-    a.back:hover { color: var(--text); }
-    .head { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 8px; flex-wrap: wrap; }
-    .head h1 { font-size: 24px; font-weight: 500; line-height: 1.2; }
-    .head .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-left: auto; }
-    .lead { color: var(--text-2); font-size: 14px; margin-bottom: 24px; max-width: 720px; }
+    .wrap { max-width: 900px; }
 
-    .toolbar { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 14px; }
+    .toolbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 16px; }
 
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      font-family: inherit; cursor: pointer; background: var(--panel2); border: 1px solid var(--border);
-      color: var(--text); padding: 9px 16px; border-radius: 8px; font-size: 13px; transition: border-color .15s var(--ease), color .15s var(--ease), background-color .15s var(--ease), opacity .15s var(--ease); font-weight: 500;
-    }
-    .btn:hover { border-color: var(--border-strong); color: var(--text); }
-    .btn.primary { background: var(--btn-bg); border-color: var(--btn-bg); color: var(--btn-fg); }
-    .btn.primary:hover { border-color: var(--btn-bg); color: var(--btn-fg); opacity: .88; }
-    .btn.danger:hover { border-color: var(--err); color: var(--err); }
-    .btn-x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; }
-    .btn-x:hover { color: var(--err); }
-    .btn-sm { padding: 6px 10px; font-size: 12px; }
-
-    .amt-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
-    .amt-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; gap: 10px; }
-    .amt-head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .chevron { color: var(--muted); transition: transform .18s var(--ease); flex: none; }
+    .amt-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); margin-bottom: 12px; overflow: hidden; }
+    .amt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; cursor: pointer; }
+    .amt-head-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .chevron { color: var(--text-muted); transition: transform .18s var(--ease); flex: none; }
     .amt-card.open .chevron { transform: rotate(90deg); }
-    .amt-title { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .amt-actions { display: flex; gap: 6px; flex: none; }
-    .amt-body { padding: 4px 16px 14px; border-top: 1px solid var(--border); }
+    .amt-title { font-weight: 500; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .amt-actions { display: flex; gap: 4px; flex: none; }
+    .amt-body { padding: 4px 16px 16px; border-top: 1px solid var(--border); }
 
-    .link-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+    .link-row { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
     .link-row:last-child { border-bottom: none; }
-    .link-label { font-size: 13px; color: var(--muted); min-width: 170px; }
+    .link-label { min-width: 168px; font-size: 13px; color: var(--text-muted); }
     .link-url { flex: 1; font-size: 13px; word-break: break-all; }
     .link-url a { color: var(--accent-text); text-decoration: none; }
     .link-url a:hover { text-decoration: underline; }
-    .link-empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+    .link-empty { padding: 12px 0; font-size: 13px; color: var(--text-muted); }
 
-    input[type=text] {
-      width: 100%; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-      padding: 8px 10px; border-radius: 8px; font-family: inherit; font-size: 13px; outline: none;
-    }
-    input[type=text]:focus { border-color: var(--accent); }
-    .edit-row { display: flex; gap: 8px; margin: 6px 0; align-items: center; }
-    .edit-row input { flex: 1; }
+    .edit-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .edit-row input { flex: 1; height: 32px; font-size: 13px; }
 
     .add-link { margin-top: 8px; }
-    .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; border: 1px dashed var(--border); border-radius: 12px; }
-    .status { font-size: 12px; color: var(--muted); text-align: right; margin-top: 6px; min-height: 16px; }
-      .btn:active:not(:disabled) { transform: scale(.98); }
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .ico { display: block; flex: none; }
+    .empty { padding: 24px; text-align: center; font-size: 13px; color: var(--text-muted); border: 1px dashed var(--border); border-radius: var(--r-card); }
+    .status { min-height: 16px; margin-top: 8px; text-align: right; font-size: 12px; color: var(--text-muted); }
   </style>
   <script src="/toolbox-client.js"></script>
 </head>
-<body>
+<body class="tool">
   <div class="wrap">
     <a class="back" href="/">← Zurück zum Werkzeugkasten</a>
     <div class="head">
@@ -327,7 +281,7 @@
       urlCell.appendChild(a);
     } else {
       const span = document.createElement('span');
-      span.style.color = 'var(--muted)';
+      span.style.color = 'var(--text-muted)';
       span.textContent = 'keine URL';
       urlCell.appendChild(span);
     }
