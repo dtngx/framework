@@ -21,20 +21,20 @@ So fügst du ein Tool zur Toolbox hinzu – **ohne den Dashboard-Code anzufassen
 
 ### Beispiel `link`
 ```json
-{ "name": "…", "type": "link", "url": "https://…", "icon": "🔗", "category": "Referenz" }
+{ "name": "…", "type": "link", "url": "https://…", "icon": "link", "category": "Referenz" }
 ```
 
 ### Beispiel `page`
 Lege deine `index.html` (und ggf. weitere Dateien) in den Tool-Ordner.
 ```json
-{ "name": "…", "type": "page", "entry": "index.html", "icon": "📐", "category": "Berechnung" }
+{ "name": "…", "type": "page", "entry": "index.html", "icon": "ruler", "category": "Berechnung" }
 ```
 
 ### Beispiel `script`
 Das `command` wird **im Tool-Ordner** ausgeführt. Ausgabe (stdout/stderr)
 erscheint im Dashboard. Für Python z. B. `"command": "python3 main.py"`.
 ```json
-{ "name": "…", "type": "script", "command": "node generate.js", "icon": "⚙️", "category": "Automatisierung" }
+{ "name": "…", "type": "script", "command": "node generate.js", "icon": "terminal", "category": "Automatisierung" }
 ```
 
 ## Felder-Referenz (tool.json)
@@ -42,7 +42,10 @@ erscheint im Dashboard. Für Python z. B. `"command": "python3 main.py"`.
 - `name` – Anzeigename auf der Kachel *(Pflicht)*
 - `description` – kurzer Text auf der Kachel
 - `category` – gruppiert die Kachel im Filter (z. B. „Berechnung“, „Referenz“)
-- `icon` – ein Emoji als Symbol
+- `icon` – Name eines Liniensymbols aus `public/icons.js` (z. B. `car`, `truck`, `route`,
+  `cloud-rain`, `thermometer`, `box`, `landmark`, `layers`, `tree`, `ruler`, `calculator`,
+  `link`, `terminal`, `wrench`). Unbekannte Namen oder Emoji zeigen ein neutrales Symbol.
+  Weitere Symbole: Pfad von [lucide.dev](https://lucide.dev) in `public/icons.js` ergänzen.
 - `type` – `link` | `page` | `script`
 - `url` – Ziel bei `link`
 - `entry` – Start-HTML bei `page` (Standard: `index.html`)

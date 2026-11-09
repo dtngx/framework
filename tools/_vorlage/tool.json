@@ -2,7 +2,7 @@
   "name": "Name des Tools",
   "description": "Kurze Beschreibung, was das Tool macht. Erscheint auf der Kachel.",
   "category": "Kategorie",
-  "icon": "🧩",
+  "icon": "wrench",
   "type": "page",
   "entry": "index.html",
   "url": "https://…",

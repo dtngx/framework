@@ -122,34 +122,40 @@ function card(tool) {
     el.addEventListener('click', () => runScript(tool));
   }
 
-  const cta =
-    tool.type === 'link' ? 'Öffnen ↗' :
-    tool.type === 'page' ? 'Starten ↗' :
-    tool.runnable ? 'Ausführen ▸' : 'Nicht ausführbar';
+  const ctaLabel =
+    tool.type === 'link' ? 'Öffnen' :
+    tool.type === 'page' ? 'Öffnen' :
+    tool.runnable ? 'Ausführen' : 'Nicht ausführbar';
+  const ctaIcon =
+    tool.type === 'link' ? 'arrow-up-right' :
+    tool.type === 'script' && !tool.runnable ? null : 'arrow-right';
 
   el.innerHTML = `
     <div class="card-top">
-      <div class="card-icon">${tool.icon}</div>
-      <span class="card-type">${TYPE_LABEL[tool.type] || tool.type}</span>
+      <div class="card-icon"></div>
+      <span class="card-type"></span>
     </div>
     <h3></h3>
     <p></p>
+    <div class="card-spacer"></div>
     <div class="card-tags"></div>
     <div class="card-foot">
-      <span class="foot-meta">
-        <span class="foot-cat"></span>
-        <span class="foot-ver"></span>
-      </span>
-      <span class="card-cta">${cta}</span>
+      <span class="foot-meta"></span>
+      <span class="card-cta">${ctaLabel}${ctaIcon ? KeksIcons.svg(ctaIcon, 16) : ''}</span>
     </div>
   `;
-  el.querySelector('h3').textContent = tool.name;
-  el.querySelector('p').textContent = tool.description;
-  el.querySelector('.foot-cat').textContent = tool.category;
 
-  const verEl = el.querySelector('.foot-ver');
-  if (tool.version) verEl.textContent = 'v' + tool.version;
-  else verEl.remove();
+  // Symbol: Name aus dem Icon-Satz (z. B. "car"); ältere Tools mit Emoji fallen auf ein neutrales Symbol zurück.
+  const iconEl = el.querySelector('.card-icon');
+  iconEl.innerHTML = KeksIcons.svg(KeksIcons.has(tool.icon) ? tool.icon : (tool.type === 'link' ? 'link' : tool.type === 'script' ? 'terminal' : 'wrench'), 20);
+
+  el.querySelector('.card-type').textContent = TYPE_LABEL[tool.type] || tool.type;
+  el.querySelector('h3').textContent = tool.name;
+  const descEl = el.querySelector('p');
+  descEl.textContent = (tool.description || '').replace(/\.$/, '');
+  descEl.title = tool.description;
+  el.querySelector('.foot-meta').textContent = [tool.category, tool.version ? 'v' + tool.version : null]
+    .filter(Boolean).join(' · ');
 
   const tagsEl = el.querySelector('.card-tags');
   for (const tag of (tool.tags || []).slice(0, 4)) {
@@ -171,13 +177,13 @@ async function runScript(tool) {
     const data = await res.json();
     const out = [data.stdout, data.stderr].filter(Boolean).join('\n').trim();
     if (data.ok) {
-      openModal(tool.name, 'ok', `✓ Erfolgreich (${data.durationMs} ms)`, out || '(keine Ausgabe)');
+      openModal(tool.name, 'ok', `Erfolgreich · ${data.durationMs} ms`, out || '(keine Ausgabe)');
     } else {
       const msg = data.error ? `Fehler: ${data.error}` : `Beendet mit Code ${data.code}`;
-      openModal(tool.name, 'err', `✗ ${msg}`, out || '(keine Ausgabe)');
+      openModal(tool.name, 'err', msg, out || '(keine Ausgabe)');
     }
   } catch (err) {
-    openModal(tool.name, 'err', '✗ Server nicht erreichbar', String(err));
+    openModal(tool.name, 'err', 'Server nicht erreichbar', String(err));
   }
 }
 
@@ -230,12 +236,17 @@ function showAuthMessage(text, isError) {
 
 async function refreshAuthUI() {
   const session = await Toolbox.getSession();
-  els.authBtn.textContent = '👤';
   if (session.loggedIn) {
     els.authUsernameLabel.textContent = session.user.username;
     els.authUsernameLabel.hidden = false;
     els.authBtn.title = 'Konto';
-    els.authMenuName.textContent = session.user.username + (session.user.role === 'admin' ? ' (Admin)' : '');
+    els.authMenuName.textContent = session.user.username;
+    if (session.user.role === 'admin') {
+      const role = document.createElement('span');
+      role.className = 'auth-menu-role';
+      role.textContent = ' · Admin';
+      els.authMenuName.appendChild(role);
+    }
     els.authMenuAdmin.hidden = session.user.role !== 'admin';
   } else {
     els.authUsernameLabel.hidden = true;
@@ -253,7 +264,7 @@ els.authBtn.addEventListener('click', async () => {
 });
 
 document.addEventListener('click', (e) => {
-  if (!els.authMenu.hidden && !els.authMenu.contains(e.target) && e.target !== els.authBtn) {
+  if (!els.authMenu.hidden && !els.authMenu.contains(e.target) && !els.authBtn.contains(e.target)) {
     els.authMenu.hidden = true;
   }
 });
@@ -281,12 +292,12 @@ els.authForm.addEventListener('submit', async (e) => {
         closeAuthModal();
         refreshAuthUI();
       } else {
-        showAuthMessage(data.error || 'Anmeldung fehlgeschlagen.', true);
+        showAuthMessage(data.error || 'Anmeldung fehlgeschlagen', true);
       }
     } else {
       const data = await Toolbox.register(username, password);
       if (data.ok) {
-        showAuthMessage(data.message || 'Account erstellt.', false);
+        showAuthMessage(data.message || 'Account erstellt', false);
         if (data.status === 'active') {
           setTimeout(async () => {
             const loginData = await Toolbox.login(username, password);
@@ -294,11 +305,11 @@ els.authForm.addEventListener('submit', async (e) => {
           }, 600);
         }
       } else {
-        showAuthMessage(data.error || 'Registrierung fehlgeschlagen.', true);
+        showAuthMessage(data.error || 'Registrierung fehlgeschlagen', true);
       }
     }
   } catch (err) {
-    showAuthMessage('Server nicht erreichbar.', true);
+    showAuthMessage('Server nicht erreichbar', true);
   } finally {
     els.authSubmit.disabled = false;
   }
